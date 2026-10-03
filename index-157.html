@@ -1,0 +1,1471 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0F2B4C">
+<title>مركز عمليات التوصيل</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@500;600;700&family=IBM+Plex+Mono:wght@500;600&family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<style>
+
+/* Layout: sticky navy ops bar → KPI strip → map (dominant) beside alerts + capacity → orders table → driver/efficiency → load forecast → stores → analytics; fixed bottom nav */
+:root{
+  --bg:#EAEEF3; --surface:#FFFFFF; --surface-2:#F4F7FA; --ink:#0D1B2A; --muted:#566779; --faint:#8696A8; --line:#DAE1E9;
+  --navy:#0F2B4C; --navy-2:#173B63; --navy-ink:#FFFFFF; --navy-muted:#A3B6CC; --navy-line:#25486F;
+  --accent:#0A97AD; --accent-strong:#087A8C; --accent-soft:#DCF2F5; --on-accent:#FFFFFF;
+  --ok:#15803D; --ok-soft:#DDF1E4; --warn:#D07206; --warn-soft:#FCEBD4; --crit:#D42525; --crit-soft:#FBE2E2;
+  --info:#2459D6; --info-soft:#E1E9FC; --violet:#6A4CD6; --violet-soft:#ECE6FB; --cyan:#0C6E88; --cyan-soft:#D8EDF3;
+  --yellow:#B07C05; --yellow-soft:#FAF0CD; --grey:#7A8796; --grey-soft:#E8ECF1; --on-sem:#FFFFFF;
+  --map-bg:#DFE6ED; --map-block:#D1DAE4; --road:#FFFFFF; --road-main:#F4E3C6; --park:#CDE3CF;
+  --shadow:0 1px 2px rgba(13,27,42,.05),0 6px 18px rgba(13,27,42,.05);
+  --f-display:"IBM Plex Sans Arabic","Tajawal",system-ui,sans-serif;
+  --f-body:"Tajawal","IBM Plex Sans Arabic",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+  --r:12px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#09111B; --surface:#101A26; --surface-2:#152131; --ink:#E4EBF3; --muted:#93A3B6; --faint:#6B7C90; --line:#22324A;
+  --navy:#0B1C31; --navy-2:#132B48; --navy-ink:#EAF1F8; --navy-muted:#8DA3BD; --navy-line:#1F3858;
+  --accent:#2BC2D7; --accent-strong:#5ED3E3; --accent-soft:#0F3540; --on-accent:#04222A;
+  --ok:#3CC671; --ok-soft:#123020; --warn:#F2A23A; --warn-soft:#3A2810; --crit:#F25858; --crit-soft:#3D1618;
+  --info:#6B97F7; --info-soft:#172A4D; --violet:#A28EF6; --violet-soft:#261F47; --cyan:#45BAD4; --cyan-soft:#0F2D38;
+  --yellow:#E3B53A; --yellow-soft:#342B0E; --grey:#8492A3; --grey-soft:#1B2738; --on-sem:#0A1018;
+  --map-bg:#0E1824; --map-block:#142130; --road:#22344A; --road-main:#3B3423; --park:#132A1D;
+  --shadow:0 1px 2px rgba(0,0,0,.35),0 6px 18px rgba(0,0,0,.25); color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#09111B; --surface:#101A26; --surface-2:#152131; --ink:#E4EBF3; --muted:#93A3B6; --faint:#6B7C90; --line:#22324A;
+  --navy:#0B1C31; --navy-2:#132B48; --navy-ink:#EAF1F8; --navy-muted:#8DA3BD; --navy-line:#1F3858;
+  --accent:#2BC2D7; --accent-strong:#5ED3E3; --accent-soft:#0F3540; --on-accent:#04222A;
+  --ok:#3CC671; --ok-soft:#123020; --warn:#F2A23A; --warn-soft:#3A2810; --crit:#F25858; --crit-soft:#3D1618;
+  --info:#6B97F7; --info-soft:#172A4D; --violet:#A28EF6; --violet-soft:#261F47; --cyan:#45BAD4; --cyan-soft:#0F2D38;
+  --yellow:#E3B53A; --yellow-soft:#342B0E; --grey:#8492A3; --grey-soft:#1B2738; --on-sem:#0A1018;
+  --map-bg:#0E1824; --map-block:#142130; --road:#22344A; --road-main:#3B3423; --park:#132A1D;
+  --shadow:0 1px 2px rgba(0,0,0,.35),0 6px 18px rgba(0,0,0,.25); color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5}
+.app.nav-on{padding-bottom:calc(86px + env(safe-area-inset-bottom,0px))}
+.app{direction:rtl}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+.num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+.mono{font-family:var(--f-mono);font-size:.92em;letter-spacing:.01em;direction:ltr;unicode-bidi:isolate}
+svg{display:block}
+
+/* ---------- header ---------- */
+.hdr{position:sticky;top:env(safe-area-inset-top,0px);z-index:40;background:var(--navy);color:var(--navy-ink);border-bottom:1px solid var(--navy-line)}
+.hdr-in{max-width:1440px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:10px 16px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px;min-width:0;flex:1 1 auto}
+.brand-mark{width:38px;height:38px;border-radius:9px;background:var(--navy-2);display:grid;place-items:center;flex:none;border:1px solid var(--navy-line)}
+.brand h1{font-family:var(--f-display);font-size:17px;font-weight:700;margin:0;line-height:1.25;white-space:nowrap}
+.brand p{margin:0;font-size:12.5px;color:var(--navy-muted)}
+.sys{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--navy-muted);order:3;flex:1 1 100%;justify-content:space-between}
+.sys-pill{display:inline-flex;align-items:center;gap:8px;padding:5px 12px;border-radius:999px;background:rgba(60,198,113,.13);color:#7EE2A6;font-weight:700;font-size:13px;border:1px solid rgba(60,198,113,.3)}
+.dot-live{width:8px;height:8px;border-radius:50%;background:#3CC671;box-shadow:0 0 0 0 rgba(60,198,113,.6);animation:live 2s infinite}
+@keyframes live{0%{box-shadow:0 0 0 0 rgba(60,198,113,.55)}70%{box-shadow:0 0 0 8px rgba(60,198,113,0)}100%{box-shadow:0 0 0 0 rgba(60,198,113,0)}}
+.upd{font-size:12.5px}
+.hdr-side{display:flex;align-items:center;gap:12px;order:2}
+.clock{text-align:start;line-height:1.3;display:none}
+.clock b{font-family:var(--f-mono);font-size:15px;font-weight:600;display:block;direction:ltr;text-align:right}
+.clock span{font-size:12px;color:var(--navy-muted)}
+.mgr{display:none;align-items:center;gap:8px;padding-inline-start:12px;border-inline-start:1px solid var(--navy-line)}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--navy-2);border:1px solid var(--navy-line);display:grid;place-items:center;font-weight:700;font-size:13px}
+.mgr small{display:block;font-size:11.5px;color:var(--navy-muted);line-height:1.2}
+.mgr b{font-size:13.5px;font-weight:700;line-height:1.3;white-space:nowrap}
+.mgr small{white-space:nowrap}
+.btn-refresh{display:inline-flex;align-items:center;gap:7px;background:var(--accent);color:var(--on-accent);border:0;border-radius:9px;padding:8px 12px;font-weight:700;font-size:13.5px;cursor:pointer;white-space:nowrap}
+.btn-refresh:hover{filter:brightness(1.07)}
+.btn-refresh svg{width:17px;height:17px}
+.btn-refresh.spin svg{animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(-360deg)}}
+@media (min-width:760px){
+  .sys{order:0;flex:0 1 auto;justify-content:center}
+  .brand{flex:1 1 0}
+  .hdr-side{flex:1 1 0;justify-content:flex-end}
+  .clock{display:block}
+}
+@media (min-width:1100px){.mgr{display:flex}}
+
+/* ---------- page ---------- */
+.wrap{max-width:1440px;margin:0 auto;padding-inline:16px;padding-block:16px 28px;display:grid;gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);min-width:0}
+.card-h{display:flex;align-items:center;justify-content:space-between;gap:10px 14px;padding:13px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.card-h h2{font-family:var(--f-display);font-size:16px;font-weight:700;margin:0;display:flex;align-items:center;gap:8px;text-wrap:balance}
+.card-h .meta{font-size:12.5px;color:var(--muted)}
+.card-b{padding:16px}
+.count{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 6px;border-radius:999px;background:var(--grey-soft);color:var(--muted);font-size:12px;font-weight:700;font-family:var(--f-body)}
+.count.crit{background:var(--crit-soft);color:var(--crit)}
+.eyebrow{font-size:11.5px;letter-spacing:.04em;color:var(--muted);font-weight:700}
+
+/* KPI */
+.kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+@media (min-width:720px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (min-width:1180px){.kpis{grid-template-columns:repeat(6,minmax(0,1fr))}}
+.kpi{all:unset;box-sizing:border-box;cursor:pointer;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:13px 14px 12px;display:grid;gap:2px;position:relative;min-width:0;transition:border-color .15s,box-shadow .15s,transform .15s}
+.kpi:hover{border-color:color-mix(in srgb,var(--kc) 45%,var(--line))}
+.kpi:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.kpi.on{border-color:var(--kc);box-shadow:0 0 0 3px color-mix(in srgb,var(--kc) 18%,transparent),var(--shadow)}
+.kpi-top{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.kpi-l{font-size:13.5px;font-weight:700;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kpi-ic{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;background:color-mix(in srgb,var(--kc) 13%,transparent);color:var(--kc);flex:none}
+.kpi-ic svg{width:16px;height:16px}
+.kpi-v{font-family:var(--f-display);font-weight:700;font-size:34px;line-height:1.15;letter-spacing:-.01em;color:var(--ink)}
+.kpi-v small{font-size:15px;font-weight:600;color:var(--muted);margin-inline-start:4px}
+.kpi-s{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kpi.alarm .kpi-v{color:var(--crit)}
+.kpi.alarm{background:linear-gradient(var(--crit-soft),var(--crit-soft)) top/100% 3px no-repeat,var(--surface)}
+
+/* ops grid */
+.ops{display:grid;gap:16px}
+@media (min-width:1100px){.ops{grid-template-columns:minmax(0,1fr) 370px;align-items:start}}
+.aside{display:grid;gap:16px;min-width:0}
+
+/* chips */
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:var(--surface-2);color:var(--muted);border-radius:999px;padding:5px 12px;font-size:13px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.chip:hover{color:var(--ink)}
+.chip.on{background:var(--navy);border-color:var(--navy);color:var(--navy-ink)}
+.chip .n{font-family:var(--f-mono);font-size:11.5px;opacity:.8}
+
+/* map */
+.map-stage{position:relative;background:var(--map-bg);border-radius:0 0 var(--r) var(--r);overflow:hidden}
+.map-stage svg{width:100%;height:auto;direction:ltr}
+.mroad{fill:var(--road)} .mroad.main{fill:var(--road-main)}
+.mblock{fill:var(--map-block)} .mpark{fill:var(--park)}
+.mtext{font-family:var(--f-body);fill:var(--faint);font-weight:700}
+.m-district{font-family:var(--f-display);font-size:44px;font-weight:700;fill:var(--ink);opacity:.07}
+.m-store{cursor:pointer}
+.m-store rect{fill:var(--surface);stroke:var(--ink);stroke-width:2}
+.m-store .glyph{fill:none;stroke:var(--ink);stroke-width:1.8;stroke-linejoin:round;stroke-linecap:round}
+.m-store.hl rect{stroke:var(--accent);stroke-width:3}
+.m-label{font:700 13px var(--f-body);fill:var(--muted);text-anchor:middle;paint-order:stroke;stroke:var(--map-bg);stroke-width:4px;stroke-linejoin:round}
+.m-pkg circle{fill:var(--warn);stroke:var(--surface);stroke-width:2}
+.m-pkg text{font:700 11px var(--f-mono);fill:var(--on-sem);text-anchor:middle}
+.m-cust{cursor:pointer}
+.m-cust .o{fill:var(--c);stroke:var(--surface);stroke-width:2.5}
+.m-cust .p{fill:var(--on-sem)}
+.m-cust.past .o{opacity:.45}
+.m-cust.sel .ring{fill:none;stroke:var(--c);stroke-width:2.5;opacity:.6}
+.route-sel{fill:none;stroke:var(--accent);stroke-width:4;stroke-dasharray:2 9;stroke-linecap:round;stroke-linejoin:round}
+.route-live{fill:none;stroke:var(--accent);stroke-width:5;stroke-linecap:round;stroke-linejoin:round;opacity:.9}
+.route-next{fill:none;stroke:var(--navy-2);stroke-width:4;stroke-dasharray:10 8;stroke-linecap:round;stroke-linejoin:round;opacity:.55}
+:root[data-theme="dark"] .route-next{stroke:var(--muted)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .route-next{stroke:var(--muted)}}
+#m-driver{cursor:pointer}
+.drv-pulse{fill:var(--accent);opacity:.25;transform-box:fill-box;transform-origin:center;animation:pulse 1.8s ease-out infinite}
+@keyframes pulse{0%{transform:scale(.7);opacity:.45}100%{transform:scale(1.9);opacity:0}}
+.drv-body{fill:var(--accent);stroke:var(--surface);stroke-width:3}
+.drv-txt{font:700 11px var(--f-mono);fill:var(--on-accent);text-anchor:middle}
+.drv-card{position:absolute;transform:translate(-50%,calc(-100% - 24px));background:var(--navy);color:var(--navy-ink);border-radius:10px;padding:8px 11px;font-size:12.5px;line-height:1.45;box-shadow:0 8px 22px rgba(0,0,0,.25);pointer-events:auto;cursor:pointer;white-space:nowrap;direction:rtl;border:1px solid var(--navy-line);z-index:2}
+.drv-card::after{content:"";position:absolute;left:50%;bottom:-6px;width:12px;height:12px;background:var(--navy);transform:translateX(-50%) rotate(45deg);border-right:1px solid var(--navy-line);border-bottom:1px solid var(--navy-line)}
+.drv-card b{font-size:13px}
+.drv-card .st{color:#7FE0EC;font-weight:700}
+.drv-card .rm{color:var(--navy-muted)}
+.drv-card.flash{animation:flash 1.2s ease 2}
+@keyframes flash{50%{box-shadow:0 0 0 6px color-mix(in srgb,var(--accent) 45%,transparent)}}
+.map-legend{position:absolute;inset-inline-start:10px;bottom:10px;background:color-mix(in srgb,var(--surface) 92%,transparent);border:1px solid var(--line);border-radius:9px;padding:6px 10px;display:flex;gap:12px;font-size:12px;color:var(--muted);flex-wrap:wrap;max-width:calc(100% - 20px)}
+.map-legend span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.lg{width:12px;height:12px;display:inline-block;flex:none}
+.lg.drv{border-radius:50%;background:var(--accent)}
+.lg.st{border-radius:3px;border:2px solid var(--ink);background:var(--surface)}
+.lg.pk{border-radius:50%;background:var(--warn)}
+.lg.cu{border-radius:50%;background:var(--cyan);box-shadow:0 0 0 2px var(--surface)}
+.map-sim{position:absolute;inset-inline-end:10px;top:10px;font-size:11.5px;font-weight:700;color:var(--muted);background:color-mix(in srgb,var(--surface) 90%,transparent);border:1px solid var(--line);padding:3px 9px;border-radius:999px}
+.map-foot{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-top:1px solid var(--line)}
+.map-foot div{padding:10px 14px;min-width:0}
+.map-foot div+div{border-inline-start:1px solid var(--line)}
+.map-foot small{display:block;font-size:12px;color:var(--muted)}
+.map-foot b{font-family:var(--f-display);font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+@media (max-width:600px){.m-label{display:none}.drv-card{font-size:11.5px;padding:6px 9px}.map-legend{font-size:11px;gap:8px;padding:5px 8px}}
+
+/* status pills */
+.s-new{--c:var(--info);--cs:var(--info-soft)}
+.s-waiting{--c:var(--warn);--cs:var(--warn-soft)}
+.s-to_store{--c:var(--accent);--cs:var(--accent-soft)}
+.s-picked{--c:var(--violet);--cs:var(--violet-soft)}
+.s-to_customer{--c:var(--cyan);--cs:var(--cyan-soft)}
+.s-delivered{--c:var(--ok);--cs:var(--ok-soft)}
+.s-late{--c:var(--crit);--cs:var(--crit-soft)}
+.s-cancelled{--c:var(--grey);--cs:var(--grey-soft)}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px 3px 11px;border-radius:999px;font-size:12.5px;font-weight:700;white-space:nowrap;background:var(--cs);color:var(--c);border:1px solid transparent;cursor:pointer;line-height:1.5}
+.pill::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--c)}
+.pill:hover{border-color:color-mix(in srgb,var(--c) 40%,transparent)}
+
+/* alerts */
+.alerts{list-style:none;margin:0;padding:6px;display:grid;gap:4px}
+.alert{all:unset;box-sizing:border-box;display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:start;padding:10px 10px;border-radius:9px;cursor:pointer;width:100%}
+.alert:hover,.alert:focus-visible{background:var(--surface-2)}
+.alert:focus-visible{outline:2px solid var(--accent)}
+.sev{width:10px;height:10px;border-radius:50%;margin-top:6px}
+.sev.crit{background:var(--crit);box-shadow:0 0 0 4px var(--crit-soft)}
+.sev.warn{background:var(--warn);box-shadow:0 0 0 4px var(--warn-soft)}
+.sev.yel{background:var(--yellow);box-shadow:0 0 0 4px var(--yellow-soft)}
+.alert p{margin:0;font-size:14px;font-weight:500;line-height:1.55}
+.alert small{color:var(--muted);font-size:12px}
+.alert .go{font-size:12.5px;font-weight:700;color:var(--accent-strong);white-space:nowrap;padding-top:2px}
+.empty{padding:22px 16px;text-align:center;color:var(--muted);font-size:14px}
+
+/* capacity */
+.cap-state{display:flex;gap:10px;align-items:flex-start;padding:12px;border-radius:10px;background:var(--cs);color:var(--ink)}
+.cap-state .ic{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;background:var(--c);color:var(--on-sem);flex:none}
+.cap-state .ic svg{width:17px;height:17px}
+.cap-state b{display:block;font-size:14.5px;color:var(--c)}
+.cap-state p{margin:2px 0 0;font-size:13px;color:var(--muted)}
+.meter{display:grid;gap:6px}
+.meter-row{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:13.5px}
+.meter-row span{color:var(--muted)}
+.meter-row b{font-family:var(--f-display);font-size:18px}
+.meter-row b small{font-size:13px;color:var(--muted);font-weight:600}
+.bar{height:9px;border-radius:999px;background:var(--grey-soft);position:relative;overflow:visible}
+.bar i{position:absolute;inset-block:0;inset-inline-start:0;border-radius:999px;background:var(--bc,var(--accent));max-width:100%}
+.bar .tick{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--ink);opacity:.55;border-radius:2px}
+.cap-grid{display:grid;gap:14px}
+.kv{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.kv div{background:var(--surface-2);border-radius:9px;padding:9px 11px}
+.kv small{display:block;font-size:12px;color:var(--muted)}
+.kv b{font-family:var(--f-display);font-size:16px}
+.reco{font-size:13.5px;color:var(--muted);border-top:1px dashed var(--line);padding-top:12px;margin:0}
+.reco b{color:var(--ink)}
+
+/* table */
+.tbl-wrap{overflow:auto;max-height:470px}
+table{width:100%;border-collapse:separate;border-spacing:0;font-size:14px}
+.orders-t{min-width:900px}
+th{position:sticky;top:0;background:var(--surface-2);color:var(--muted);font-weight:700;font-size:12.5px;text-align:start;padding:9px 12px;border-bottom:1px solid var(--line);white-space:nowrap;z-index:1}
+td{padding:10px 12px;border-bottom:1px solid var(--line);white-space:nowrap;vertical-align:middle}
+tbody tr{cursor:pointer;transition:background .12s}
+tbody tr:hover{background:var(--surface-2)}
+tbody tr.is-late td{background:color-mix(in srgb,var(--crit-soft) 55%,transparent)}
+tbody tr.is-late td:first-child{box-shadow:inset -3px 0 0 var(--crit)}
+tbody tr.is-sel td{background:color-mix(in srgb,var(--accent-soft) 70%,transparent)}
+.oid{font-family:var(--f-mono);font-weight:600;direction:ltr;unicode-bidi:isolate}
+.lnk{all:unset;cursor:pointer;font-weight:700;color:var(--ink);border-bottom:1px dashed color-mix(in srgb,var(--ink) 35%,transparent)}
+.lnk:hover{color:var(--accent-strong);border-bottom-color:var(--accent)}
+.lnk:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.muted{color:var(--muted)}
+.late-tag{color:var(--crit);font-weight:700;font-size:12.5px;margin-inline-start:4px}
+.btn-sm{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:4px 12px;font-weight:700;font-size:13px;cursor:pointer;color:var(--accent-strong)}
+.btn-sm:hover{border-color:var(--accent)}
+.filter-tag{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;background:var(--accent-soft);color:var(--accent-strong);border-radius:999px;padding:3px 6px 3px 10px;border:0;cursor:pointer}
+.filter-tag svg{width:14px;height:14px}
+
+/* duo rows */
+.duo{display:grid;gap:16px}
+@media (min-width:1000px){.duo{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+.duo.wide-first{}
+@media (min-width:1000px){.duo.wide-first{grid-template-columns:minmax(0,1.35fr) minmax(0,1fr)}}
+
+/* driver */
+.drv-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.drv-av{width:44px;height:44px;border-radius:12px;background:var(--accent-soft);color:var(--accent-strong);display:grid;place-items:center;font-family:var(--f-mono);font-weight:600;font-size:15px}
+.drv-head h3{margin:0;font-family:var(--f-display);font-size:16px}
+.drv-head p{margin:0;font-size:13px;color:var(--muted)}
+.drv-grid{display:grid;grid-template-columns:auto minmax(0,1fr);gap:16px;align-items:center;margin-top:14px}
+.ring-wrap{position:relative;width:118px;height:118px}
+.ring-wrap .rv{position:absolute;inset:0;display:grid;place-items:center;text-align:center;line-height:1.1}
+.ring-wrap .rv b{font-family:var(--f-display);font-size:26px;display:block}
+.ring-wrap .rv small{font-size:11.5px;color:var(--muted)}
+.ring-bg{fill:none;stroke:var(--grey-soft)}
+.ring-fg{fill:none;stroke-linecap:round;transition:stroke-dashoffset .6s}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.stat{background:var(--surface-2);border-radius:9px;padding:8px 10px;min-width:0}
+.stat small{display:block;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stat b{font-family:var(--f-display);font-size:19px}
+.stat b small{display:inline;font-size:12px;font-weight:600}
+.stat.crit b{color:var(--crit)}
+.sub-h{font-size:13px;font-weight:700;color:var(--muted);margin:16px 0 4px;display:flex;justify-content:space-between}
+@media (max-width:460px){.drv-grid{grid-template-columns:1fr;justify-items:center}.stats{width:100%}}
+
+/* efficiency */
+.eff{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+@media (min-width:640px){.eff{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.eff-t{border:1px solid var(--line);border-radius:10px;padding:11px 12px;display:grid;gap:7px;min-width:0}
+.eff-t small{font-size:12.5px;color:var(--muted);font-weight:700}
+.eff-t .v{font-family:var(--f-display);font-size:24px;font-weight:700;line-height:1.1}
+.eff-t .v span{font-size:13px;color:var(--muted);font-weight:600;margin-inline-start:3px}
+.eff-t .cap{font-size:11.5px;color:var(--muted)}
+.eff-t.good .v{color:var(--ok)} .eff-t.mid .v{color:var(--warn)} .eff-t.bad .v{color:var(--crit)}
+
+/* charts */
+.chart{width:100%;height:auto;direction:ltr;overflow:visible}
+.chart .grid{stroke:var(--line);stroke-width:1}
+.chart .ax{font:500 11.5px var(--f-body);fill:var(--muted)}
+.chart .axn{font:500 11px var(--f-mono);fill:var(--muted)}
+.chart .b-main{fill:var(--accent)}
+.chart .b-warn{fill:var(--warn)}
+.chart .b-crit{fill:var(--crit)}
+.chart .b-ok{fill:var(--ok)}
+.chart .b-grey{fill:var(--grey)}
+.chart .b-navy{fill:var(--navy-2)}
+.chart .bar-r:hover{opacity:.82}
+.chart .ref{stroke:var(--crit);stroke-width:1.5;stroke-dasharray:5 4}
+.chart .ref-t{font:700 11.5px var(--f-body);fill:var(--crit);paint-order:stroke;stroke:var(--surface);stroke-width:4px;stroke-linejoin:round}
+.chart .band{fill:var(--warn-soft);opacity:.7}
+.chart .band-t{font:700 11.5px var(--f-body);fill:var(--warn)}
+.chart .val{font:600 11px var(--f-mono);fill:var(--ink);text-anchor:middle}
+.chart .ln{fill:none;stroke:var(--accent);stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}
+.chart .ar{fill:var(--accent);opacity:.13}
+.chart .pt{fill:var(--surface);stroke:var(--accent);stroke-width:2}
+.chart .pt-end{fill:var(--accent);stroke:var(--surface);stroke-width:2.5}
+.chart .hit{fill:transparent;cursor:crosshair}
+.ana-grid{display:grid;gap:12px}
+@media (min-width:900px){.ana-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.ana-grid .span2{grid-column:1/-1}}
+.panel{border:1px solid var(--line);border-radius:10px;padding:12px 14px;min-width:0}
+.panel h3{margin:0 0 2px;font-size:14px;font-weight:700;font-family:var(--f-display)}
+.panel .ph{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.panel .ph span{font-size:12.5px;color:var(--muted)}
+.panel .ph span b{color:var(--ink);font-family:var(--f-display);font-size:15px}
+.legend-i{display:flex;gap:14px;font-size:12px;color:var(--muted);margin-top:4px}
+.legend-i span{display:inline-flex;gap:5px;align-items:center}
+.legend-i i{width:10px;height:10px;border-radius:3px;display:inline-block}
+.seg{display:inline-flex;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:3px}
+.seg button{border:0;background:transparent;padding:5px 12px;border-radius:7px;font-weight:700;font-size:13px;color:var(--muted);cursor:pointer}
+.seg button.on{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.hbars{display:grid;gap:8px}
+.hb{display:grid;grid-template-columns:76px minmax(0,1fr) 34px;gap:10px;align-items:center;font-size:13px}
+.hb .nm{all:unset;cursor:pointer;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hb .nm:hover{color:var(--accent-strong)}
+.hb .tr{height:12px;background:var(--grey-soft);border-radius:4px;overflow:hidden}
+.hb .tr i{display:block;height:100%;background:var(--accent);border-radius:4px}
+.hb.top .tr i{background:var(--navy-2)}
+:root[data-theme="dark"] .hb.top .tr i{background:var(--accent-strong)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .hb.top .tr i{background:var(--accent-strong)}}
+.hb .c{font-family:var(--f-mono);font-weight:600;text-align:end}
+
+/* forecast verdict */
+.verdict{display:grid;gap:10px;margin-top:12px}
+@media (min-width:700px){.verdict{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.verdict div{background:var(--surface-2);border-radius:9px;padding:10px 12px}
+.verdict small{display:block;font-size:12px;color:var(--muted)}
+.verdict b{font-family:var(--f-display);font-size:16px}
+
+/* stores table */
+.stores-t{min-width:640px}
+.rank{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:6px;background:var(--grey-soft);font-family:var(--f-mono);font-size:12px;font-weight:600;color:var(--muted);margin-inline-end:8px}
+.rank.r1{background:var(--accent-soft);color:var(--accent-strong)}
+.mini-bar{display:inline-block;width:64px;height:6px;background:var(--grey-soft);border-radius:4px;vertical-align:middle;margin-inline-start:8px;overflow:hidden}
+.mini-bar i{display:block;height:100%;background:var(--accent)}
+.badge-top{font-size:11px;font-weight:700;color:var(--accent-strong);background:var(--accent-soft);padding:1px 7px;border-radius:999px;margin-inline-start:6px}
+
+/* bottom nav */
+/* mobile bottom bar: 5 slots, map raised in the centre */
+.app:not(.nav-on) .bnav{display:none}
+.bnav{position:fixed;inset-inline:0;bottom:0;z-index:45;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px);box-shadow:0 -6px 20px rgba(13,27,42,.07)}
+.bnav-in{max-width:560px;margin:0 auto;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));padding:4px 8px 6px}
+.nb-btn{border:0;background:transparent;display:grid;justify-items:center;align-content:end;gap:3px;padding:7px 2px 4px;cursor:pointer;color:var(--muted);font-size:11.5px;font-weight:700;min-width:0;position:relative}
+.nb-btn span{white-space:nowrap}
+.nb-btn .ic{width:44px;height:28px;border-radius:999px;display:grid;place-items:center;transition:background .15s}
+.nb-btn .ic svg{width:22px;height:22px}
+.nb-btn.on{color:var(--accent-strong)}
+.nb-btn.on .ic{background:var(--accent-soft)}
+.nb-btn.center .ic{width:54px;height:54px;border-radius:17px;background:var(--accent);color:var(--on-accent);margin-top:-26px;border:4px solid var(--surface);box-shadow:0 6px 16px color-mix(in srgb,var(--accent) 38%,transparent)}
+.nb-btn.center .ic svg{width:24px;height:24px}
+.nb-btn.center.on .ic{background:var(--accent-strong)}
+.badge{position:absolute;top:2px;inset-inline-start:calc(50% + 6px);min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--crit);color:#fff;font:700 11px var(--f-mono);display:grid;place-items:center;border:2px solid var(--surface);line-height:1}
+.badge.info{background:var(--accent);color:var(--on-accent)}
+.sdot{position:absolute;top:5px;inset-inline-start:calc(50% + 8px);width:10px;height:10px;border-radius:50%;border:2px solid var(--surface);background:var(--dc,var(--ok))}
+/* desktop side rail */
+.rail{position:fixed;top:0;bottom:0;inset-inline-start:0;width:92px;background:var(--surface);border-inline-end:1px solid var(--line);z-index:50;display:none;flex-direction:column;align-items:center;gap:4px;padding-block:calc(12px + env(safe-area-inset-top,0px)) 14px}
+.rail-logo{width:46px;height:46px;border-radius:12px;background:var(--navy);display:grid;place-items:center;margin-bottom:10px}
+.rail .nb-btn{width:76px;padding:9px 4px;border-radius:12px;align-content:center;font-size:12px}
+.rail .nb-btn .ic{width:40px;height:30px}
+.rail .nb-btn:hover{background:var(--surface-2)}
+.rail .nb-btn.on{background:var(--accent-soft)}
+.rail .nb-btn.on .ic{background:transparent}
+.rail .nb-btn.on::before{content:"";position:absolute;inset-inline-start:-8px;top:12px;bottom:12px;width:4px;border-radius:4px;background:var(--accent)}
+.rail .badge{top:4px;inset-inline-start:calc(50% + 4px)}
+.rail .sdot{top:8px;inset-inline-start:calc(50% + 7px)}
+.rail-sep{flex:1}
+@media (min-width:1100px){
+  .app.nav-on .rail{display:flex}
+  .app.nav-on .bnav{display:none!important}
+  .app.nav-on{padding-inline-start:92px;padding-bottom:0}
+  .app.nav-on .hdr .brand-mark{display:none}
+}
+/* "more" sheet */
+.sheet{position:fixed;inset-inline:0;bottom:0;z-index:62;background:var(--surface);border-radius:20px 20px 0 0;padding:8px 16px calc(18px + env(safe-area-inset-bottom,0px));transform:translateY(105%);transition:transform .25s ease;direction:rtl;max-width:560px;margin:0 auto;box-shadow:0 -10px 30px rgba(0,0,0,.2)}
+.sheet.on{transform:none}
+.sheet-h{width:42px;height:5px;border-radius:9px;background:var(--line);margin:4px auto 14px}
+.sheet h3{margin:0 0 12px;font-family:var(--f-display);font-size:15px}
+.tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.tile{border:1px solid var(--line);background:var(--surface-2);border-radius:14px;padding:14px 6px;display:grid;justify-items:center;gap:8px;cursor:pointer;font-weight:700;font-size:13.5px;text-align:center}
+.tile .ic{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent-strong)}
+.tile .ic svg{width:22px;height:22px}
+.tile small{display:block;font-size:11.5px;color:var(--muted);font-weight:500}
+.sheet-out{margin-top:12px;width:100%;justify-content:center;color:var(--crit)}
+/* drawer */
+.scrim{position:fixed;inset:0;background:rgba(5,12,22,.45);z-index:60;opacity:0;pointer-events:none;transition:opacity .2s}
+.scrim.on{opacity:1;pointer-events:auto}
+.drawer{position:fixed;top:0;bottom:0;inset-inline-end:0;width:min(440px,100%);background:var(--surface);z-index:61;transform:translateX(-102%);transition:transform .25s ease;display:flex;flex-direction:column;border-inline-start:1px solid var(--line);box-shadow:8px 0 30px rgba(0,0,0,.18);direction:rtl;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+.drawer.on{transform:none}
+.dr-h{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:16px;border-bottom:1px solid var(--line)}
+.dr-h h3{margin:2px 0 0;font-family:var(--f-display);font-size:20px}
+.icon-btn{border:1px solid var(--line);background:var(--surface-2);width:36px;height:36px;border-radius:9px;display:grid;place-items:center;cursor:pointer;flex:none}
+.icon-btn svg{width:18px;height:18px}
+.dr-b{padding:16px;overflow:auto;display:grid;gap:16px;align-content:start}
+.facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.facts div{background:var(--surface-2);border-radius:9px;padding:9px 11px;min-width:0}
+.facts small{display:block;font-size:12px;color:var(--muted)}
+.facts b{font-size:14.5px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dr-actions{display:flex;gap:8px;flex-wrap:wrap}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:9px;padding:8px 14px;font-weight:700;font-size:13.5px;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn svg{width:16px;height:16px}
+.dr-sec h4{margin:0 0 10px;font-size:14px;font-family:var(--f-display)}
+.tl{list-style:none;margin:0;padding:0;position:relative}
+.tl li{position:relative;padding-inline-start:30px;padding-bottom:16px;display:grid;grid-template-columns:58px minmax(0,1fr);gap:8px;align-items:baseline}
+.tl li::before{content:"";position:absolute;inset-inline-start:8px;top:10px;bottom:-4px;width:2px;background:var(--line)}
+.tl li:last-child::before{display:none}
+.tl li.done::before{background:var(--accent)}
+.tl .nd{position:absolute;inset-inline-start:2px;top:4px;width:14px;height:14px;border-radius:50%;background:var(--surface);border:2px solid var(--line)}
+.tl li.done .nd{background:var(--accent);border-color:var(--accent)}
+.tl li.cur .nd{border-color:var(--warn);background:var(--warn-soft);box-shadow:0 0 0 4px var(--warn-soft)}
+.tl li.cxl .nd{background:var(--crit);border-color:var(--crit)}
+.tl time{font-family:var(--f-mono);font-size:13px;font-weight:600;color:var(--ink);direction:ltr;text-align:right}
+.tl li.pend time,.tl li.pend span{color:var(--faint)}
+.tl span{font-size:14px;font-weight:500}
+.tl em{display:block;font-style:normal;font-size:12px;color:var(--muted)}
+.olist{display:grid;gap:6px}
+.olist button{all:unset;box-sizing:border-box;display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:9px;cursor:pointer;font-size:13.5px}
+.olist button:hover{background:var(--surface-2)}
+.form{display:grid;gap:14px}
+.form label{display:grid;gap:5px;font-size:13.5px;font-weight:700}
+.form label small{font-weight:500;color:var(--muted);font-size:12px}
+.form input[type=number]{font:inherit;padding:9px 11px;border-radius:9px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);width:100%}
+.switch{display:flex!important;align-items:center;justify-content:space-between;grid-template-columns:none}
+.switch input{width:20px;height:20px;accent-color:var(--accent)}
+
+/* toast & tip */
+.toast{position:fixed;bottom:calc(86px + env(safe-area-inset-bottom,0px));left:50%;transform:translate(-50%,20px);background:var(--navy);color:var(--navy-ink);padding:9px 16px;border-radius:10px;font-size:13.5px;font-weight:700;z-index:70;opacity:0;transition:.25s;pointer-events:none;direction:rtl;box-shadow:0 8px 24px rgba(0,0,0,.25);max-width:calc(100% - 32px)}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+.tip{position:fixed;z-index:80;background:var(--navy);color:var(--navy-ink);font-size:12.5px;padding:5px 9px;border-radius:7px;pointer-events:none;opacity:0;transition:opacity .1s;direction:rtl;white-space:nowrap}
+.tip.on{opacity:1}
+.sec-anchor{scroll-margin-top:84px}
+/* login */
+.login{min-height:100vh;display:grid;place-items:center;padding-inline:16px;padding-block:28px;direction:rtl}
+.login-card{width:min(460px,100%);background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);overflow:hidden}
+.login-top{background:var(--navy);color:var(--navy-ink);padding:22px 20px;display:flex;gap:12px;align-items:center}
+.login-top h1{margin:0;font-family:var(--f-display);font-size:19px}
+.login-top p{margin:2px 0 0;font-size:13px;color:var(--navy-muted)}
+.login-body{padding:20px;display:grid;gap:16px}
+.roles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.role{border:1.5px solid var(--line);background:var(--surface-2);border-radius:12px;padding:12px 6px;display:grid;justify-items:center;gap:6px;cursor:pointer;text-align:center}
+.role svg{width:24px;height:24px;color:var(--muted)}
+.role b{font-size:14px}
+.role small{font-size:11.5px;color:var(--muted);line-height:1.35}
+.role.on{border-color:var(--accent);background:var(--accent-soft)}
+.role.on svg{color:var(--accent-strong)}
+.form input[type=text],.form input[type=password],.form select,.form textarea{font:inherit;padding:10px 12px;border-radius:9px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);width:100%}
+.form textarea{resize:vertical;min-height:64px}
+.pass-in{font-family:var(--f-mono)!important;letter-spacing:.3em;font-size:18px!important;text-align:center;direction:ltr}
+.err{margin:0;color:var(--crit);font-size:13.5px;font-weight:700}
+.btn.big{width:100%;justify-content:center;padding:12px;font-size:15px}
+.hint{font-size:12.5px;color:var(--muted);border-top:1px dashed var(--line);padding-top:12px}
+.hint summary{cursor:pointer;font-weight:700}
+.hint p{margin:8px 0 0}
+.btn-out{display:inline-flex;align-items:center;gap:6px;background:transparent;color:var(--navy-ink);border:1px solid var(--navy-line);border-radius:9px;padding:7px 11px;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap}
+.btn-out:hover{background:var(--navy-2)}
+.btn-out svg{width:16px;height:16px}
+.kpi.static{cursor:default}
+.kpis.k4{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media (min-width:900px){.kpis.k4{grid-template-columns:repeat(4,minmax(0,1fr))}}
+/* store + driver lists */
+.so-list{display:grid}
+.so{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 12px;padding:12px 16px;border-bottom:1px solid var(--line);align-items:center}
+.so:last-child{border-bottom:0}
+.so-m{min-width:0;display:grid;gap:2px}
+.so-m .t{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.so-m small{color:var(--muted);font-size:12.5px}
+.so-a{display:flex;gap:6px;flex-wrap:wrap;grid-column:1/-1}
+.btn-sm.ok{background:var(--ok);border-color:var(--ok);color:var(--on-sem)}
+.btn-sm.danger{color:var(--crit)}
+.btn-sm.danger.armed{background:var(--crit);border-color:var(--crit);color:var(--on-sem)}
+.btn-sm:disabled{opacity:.45;cursor:not-allowed}
+.drv-status{display:flex;gap:12px;align-items:center}
+.drv-status p{margin:2px 0 0;font-size:13.5px;color:var(--muted)}
+.drv-status b{font-size:15px}
+.job-steps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;margin-block:4px 2px}
+.job-steps div{display:grid;gap:6px;font-size:11.5px;font-weight:700;color:var(--faint);text-align:center}
+.job-steps i{height:6px;border-radius:999px;background:var(--grey-soft)}
+.job-steps .done{color:var(--ok)} .job-steps .done i{background:var(--ok)}
+.job-steps .cur{color:var(--accent-strong)} .job-steps .cur i{background:var(--accent)}
+.job-big{font-family:var(--f-display);font-size:20px;font-weight:700;margin:0}
+.btn.huge{width:100%;justify-content:center;padding:14px;font-size:16px}
+.btn.huge.ok{background:var(--ok);border-color:var(--ok);color:var(--on-sem)}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+.q-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;padding:12px 16px;border-bottom:1px solid var(--line);align-items:center}
+.q-row:last-child{border-bottom:0}
+.q-row small{display:block;color:var(--muted);font-size:12.5px}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+
+/* ---------- production additions ---------- */
+html,body{margin:0}
+#lmap{width:100%;height:clamp(320px,52vh,560px);direction:ltr;background:var(--map-bg)}
+#s-map #lmap,#d-map #lmap{height:clamp(280px,42vh,440px)}
+.leaflet-container{font-family:var(--f-body)}
+.lm-store{width:30px;height:30px;border-radius:8px;background:var(--surface);border:2px solid var(--ink);display:grid;place-items:center;position:relative;box-shadow:0 2px 6px rgba(0,0,0,.2)}
+.lm-store svg{width:17px;height:17px;color:var(--ink)}
+.lm-store.hl{border-color:var(--accent);border-width:3px}
+.lm-store .pk{position:absolute;top:-9px;left:-9px;min-width:19px;height:19px;border-radius:999px;background:var(--warn);color:var(--on-sem);font:700 11px var(--f-mono);display:grid;place-items:center;border:2px solid var(--surface)}
+.lm-cust{width:24px;height:24px;border-radius:50%;background:var(--c);border:3px solid var(--surface);box-shadow:0 2px 6px rgba(0,0,0,.25);display:grid;place-items:center;color:var(--on-sem)}
+.lm-cust svg{width:12px;height:12px}
+.lm-cust.past{opacity:.45}
+.lm-cust.sel{width:32px;height:32px;box-shadow:0 0 0 5px color-mix(in srgb,var(--c) 30%,transparent)}
+.lm-drv{width:34px;height:34px;border-radius:50%;background:var(--accent);border:3px solid var(--surface);color:var(--on-accent);font:700 12px var(--f-mono);display:grid;place-items:center;box-shadow:0 0 0 0 color-mix(in srgb,var(--accent) 50%,transparent);animation:drvp 1.8s infinite}
+.lm-drv.stale{background:var(--grey);animation:none}
+@keyframes drvp{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--accent) 50%,transparent)}100%{box-shadow:0 0 0 16px transparent}}
+.lm-pick{width:26px;height:26px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:var(--crit);border:3px solid var(--surface);box-shadow:0 2px 6px rgba(0,0,0,.3)}
+.leaflet-tooltip.drv-tip{background:var(--navy);color:var(--navy-ink);border:1px solid var(--navy-line);border-radius:10px;padding:7px 10px;font:12.5px/1.45 var(--f-body);direction:rtl;text-align:right;box-shadow:0 8px 22px rgba(0,0,0,.25)}
+.leaflet-tooltip.drv-tip::before{border-top-color:var(--navy)}
+.drv-tip .st{color:#7FE0EC;font-weight:700}
+.drv-tip .rm{color:var(--navy-muted)}
+.leaflet-tooltip.lbl{background:var(--surface);color:var(--ink);border:1px solid var(--line);font:700 11.5px var(--f-body);padding:1px 6px;box-shadow:none}
+.leaflet-tooltip.lbl::before{display:none}
+.map-stage.picking #lmap{cursor:crosshair;outline:3px solid var(--crit);outline-offset:-3px}
+.pick-bar{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:500;background:var(--crit);color:#fff;font-weight:700;font-size:13px;padding:6px 12px;border-radius:999px;display:flex;gap:8px;align-items:center;white-space:nowrap}
+.pick-bar button{all:unset;cursor:pointer;background:rgba(255,255,255,.2);padding:2px 9px;border-radius:999px}
+.map-stage .map-legend,.map-stage .map-sim{z-index:500}
+.banner{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:12px 14px;border-radius:12px;background:var(--warn-soft);border:1px solid color-mix(in srgb,var(--warn) 35%,transparent)}
+.banner b{color:var(--warn)}
+.banner p{margin:2px 0 0;font-size:13px;color:var(--muted)}
+.loc-state{font-size:12.5px;color:var(--muted);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.loc-state.ok{color:var(--ok);font-weight:700}
+.row2{display:flex;gap:8px;flex-wrap:wrap}
+.gps{display:inline-flex;gap:6px;align-items:center;font-size:12.5px;font-weight:700;padding:3px 10px;border-radius:999px;background:var(--grey-soft);color:var(--muted)}
+.gps.ok{background:var(--ok-soft);color:var(--ok)}
+.gps.bad{background:var(--crit-soft);color:var(--crit)}
+.setup{max-width:640px;margin:40px auto;padding-inline:16px;direction:rtl}
+.setup code{font-family:var(--f-mono);background:var(--surface-2);padding:1px 6px;border-radius:5px;direction:ltr;unicode-bidi:isolate}
+.empty-chart{padding:28px 10px;text-align:center;color:var(--muted);font-size:13.5px;border:1px dashed var(--line);border-radius:10px}
+.sys-pill.off{background:rgba(242,162,58,.14);color:#F7C27A;border-color:rgba(242,162,58,.35)}
+.sys-pill.off .dot-live{background:#F2A23A;animation:none}
+.btn-acct{display:inline-flex;align-items:center;gap:6px;background:transparent;color:var(--navy-ink);border:1px solid var(--navy-line);border-radius:9px;padding:7px 9px;cursor:pointer}
+.btn-acct svg{width:16px;height:16px}
+.sheet:not(.on){visibility:hidden}
+.app:not(.nav-on) .sheet{display:none}
+.loading{position:fixed;inset:0;display:grid;place-items:center;background:var(--bg);z-index:90;color:var(--muted);font-weight:700}
+</style>
+</head>
+<body>
+<div class="app" id="top">
+
+<div class="loading" id="loading">جارٍ التحميل…</div>
+
+<section class="setup" id="v-setup" hidden>
+  <div class="card card-b">
+    <h2 style="font-family:var(--f-display);margin-top:0">إعداد الربط مع Supabase</h2>
+    <p>افتح هذا الملف وضع قيمتي <code>SUPABASE_URL</code> و<code>SUPABASE_ANON_KEY</code> في أعلى الكود، من: Supabase → Project Settings → API.</p>
+    <p class="muted">ثم شغّل ملف <code>schema.sql</code> وأنشئ الحسابات كما هو موضح في أوله.</p>
+  </div>
+</section>
+
+<header class="hdr" hidden>
+  <div class="hdr-in">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#5ED3E3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="18" r="2.2"/><circle cx="19" cy="6" r="2.2"/><path d="M7 18h6a3 3 0 0 0 0-6h-2a3 3 0 0 1 0-6h6"/></svg>
+      </div>
+      <div><h1 id="hdr-title">مركز عمليات التوصيل</h1><p id="hdr-sub">حي مشرف – الخرج</p></div>
+    </div>
+    <div class="sys">
+      <span class="sys-pill" id="live-pill"><span class="dot-live"></span><span id="live-txt">التشغيل نشط</span></span>
+      <span class="upd" id="upd">آخر تحديث: الآن</span>
+    </div>
+    <div class="hdr-side">
+      <div class="clock"><b id="clk" class="num">--:--</b><span id="dt">—</span></div>
+      <div class="mgr"><div class="avatar" id="who-av">م ع</div><div><small id="who-role">مدير العمليات</small><b id="who-name">محمد العنزي</b></div></div>
+      <button class="btn-refresh" id="refresh" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>
+        تحديث البيانات
+      </button>
+      <button class="btn-acct" id="acct" type="button" title="تغيير الرقم السري" aria-label="تغيير الرقم السري"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2L20 3M16 7l3 3M14 9l2 2"/></svg></button>
+      <button class="btn-out" id="logout" type="button" title="تسجيل الخروج"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/><path d="M9 8l-4 4 4 4M5 12h11"/></svg>خروج</button>
+    </div>
+  </div>
+</header>
+
+<section class="login" id="v-login" hidden>
+  <div class="login-card">
+    <div class="login-top">
+      <div class="brand-mark" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#5ED3E3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="18" r="2.2"/><circle cx="19" cy="6" r="2.2"/><path d="M7 18h6a3 3 0 0 0 0-6h-2a3 3 0 0 1 0-6h6"/></svg></div>
+      <div><h1>منصة التوصيل – حي مشرف</h1><p>اختر الواجهة وأدخل الرقم السري</p></div>
+    </div>
+    <form class="login-body form" id="login-form" autocomplete="on">
+      <div class="roles" role="radiogroup" aria-label="الواجهة" id="roles"></div>
+      <label for="l-store" id="store-pick" hidden>المحل<select id="l-store"></select></label>
+      <label for="l-pass">الرقم السري<input id="l-pass" class="pass-in" type="password" inputmode="numeric" autocomplete="current-password" required></label>
+      <p class="err" id="l-err" hidden></p>
+      <button class="btn pri big" type="submit" id="l-btn">دخول</button>
+    </form>
+  </div>
+</section>
+
+<!-- ================= الإدارة ================= -->
+<main class="wrap" id="v-admin" hidden>
+  <section class="kpis sec-anchor" id="kpis" aria-label="مؤشرات التشغيل"></section>
+  <div class="ops">
+    <section class="card sec-anchor" id="map">
+      <div class="card-h">
+        <h2>حركة التوصيل الآن</h2>
+        <div class="chips" id="map-chips" role="group" aria-label="فلتر الخريطة"></div>
+      </div>
+      <div class="map-stage" id="map-stage">
+        <div id="lmap"></div>
+        <div class="map-sim" id="map-tag">مباشر</div>
+        <div class="map-legend">
+          <span><i class="lg drv"></i>المندوب</span>
+          <span><i class="lg st"></i>المحل</span>
+          <span><i class="lg pk"></i>طلبات جاهزة</span>
+          <span><i class="lg cu"></i>العميل</span>
+        </div>
+      </div>
+      <div class="map-foot" id="map-foot"></div>
+    </section>
+    <div class="aside">
+      <section class="card sec-anchor" id="alerts-card">
+        <div class="card-h"><h2>تنبيهات تحتاج إلى إجراء <span class="count crit" id="al-n">0</span></h2></div>
+        <ul class="alerts" id="alerts"></ul>
+      </section>
+      <section class="card" id="cap-card">
+        <div class="card-h"><h2>حالة الطاقة التشغيلية</h2><span class="meta">مندوب واحد</span></div>
+        <div class="card-b cap-grid" id="cap"></div>
+      </section>
+    </div>
+  </div>
+
+  <section class="card sec-anchor" id="orders">
+    <div class="card-h">
+      <h2>الطلبات النشطة الآن <span class="count" id="ord-n">0</span></h2>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span id="ord-filter"></span><span class="meta">اضغط على الحالة للتصفية · على الصف لعرض التفاصيل</span></div>
+    </div>
+    <div class="tbl-wrap">
+      <table class="orders-t">
+        <thead><tr><th>رقم الطلب</th><th>المحل</th><th>المندوب</th><th>حالة الطلب</th><th>وقت الطلب</th><th>مدة التوصيل</th><th>المسافة</th><th>العميل</th><th>الإجراء</th></tr></thead>
+        <tbody id="ord-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="duo">
+    <section class="card sec-anchor" id="driver">
+      <div class="card-h"><h2>أداء المندوب اليوم</h2><button class="btn-sm" type="button" id="drv-locate">عرض موقعه</button></div>
+      <div class="card-b" id="drv-perf"></div>
+    </section>
+    <section class="card" id="eff-card">
+      <div class="card-h"><h2>مؤشرات كفاءة التشغيل</h2><span class="meta">الخط الرأسي = المستهدف</span></div>
+      <div class="card-b"><div class="eff" id="eff"></div></div>
+    </section>
+  </div>
+
+  <section class="card" id="forecast">
+    <div class="card-h"><h2>حجم الطلبات خلال اليوم</h2><span class="meta">متوسط آخر 4 أسابيع مقابل طاقة مندوب واحد</span></div>
+    <div class="card-b"><div id="fc-chart"></div><div class="verdict" id="fc-verdict"></div></div>
+  </section>
+
+  <section class="card sec-anchor" id="stores">
+    <div class="card-h"><h2>أداء المحلات اليوم</h2><span class="meta">اضغط على اسم المحل للتفاصيل</span></div>
+    <div class="tbl-wrap" style="max-height:none">
+      <table class="stores-t">
+        <thead><tr><th>المحل</th><th>عدد الطلبات</th><th>المكتملة</th><th>الملغاة</th><th>متوسط وقت الانتظار</th><th>متوسط التوصيل</th></tr></thead>
+        <tbody id="st-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card sec-anchor" id="reports">
+    <div class="card-h">
+      <h2>تحليل الطلبات</h2>
+      <div class="seg" id="period" role="tablist">
+        <button type="button" data-p="today" class="on">اليوم</button>
+        <button type="button" data-p="week">هذا الأسبوع</button>
+        <button type="button" data-p="month">هذا الشهر</button>
+      </div>
+    </div>
+    <div class="card-b ana-grid" id="ana"></div>
+  </section>
+</main>
+
+<!-- ================= المحل ================= -->
+<main class="wrap" id="v-store" hidden>
+  <div id="s-banner"></div>
+  <section class="kpis k4" id="s-kpis" aria-label="مؤشرات المحل"></section>
+  <div class="ops">
+    <div class="aside">
+      <section class="card" id="s-map"><div class="card-h"><h2>المندوب على الخريطة</h2><span class="meta">طلباتك فقط</span></div></section>
+      <section class="card">
+        <div class="card-h"><h2>طلبات المحل اليوم <span class="count" id="s-n">0</span></h2>
+          <div class="chips" id="s-tabs"><button type="button" class="chip on" data-stab="active">النشطة</button><button type="button" class="chip" data-stab="done">المكتملة</button><button type="button" class="chip" data-stab="all">الكل</button></div></div>
+        <div class="so-list" id="s-list"></div>
+      </section>
+    </div>
+    <div class="aside">
+      <section class="card"><div class="card-h"><h2>حالة المندوب</h2></div><div class="card-b" id="s-drv"></div></section>
+      <section class="card" id="s-new-card">
+        <div class="card-h"><h2>طلب مندوب</h2><span class="meta">يصل للمندوب فورًا</span></div>
+        <form class="card-b form" id="s-form">
+          <label for="s-cname">اسم العميل<input id="s-cname" type="text" required maxlength="40" placeholder="مثال: فهد م."></label>
+          <label for="s-loc">وصف موقع العميل<small>الشارع أو أقرب معلم داخل حي مشرف</small><input id="s-loc" type="text" maxlength="80" placeholder="مثال: خلف مسجد الحي، الشارع الثاني"></label>
+          <label for="s-link">موقع العميل على الخريطة<small>الصق رابط الموقع من خرائط Google أو الإحداثيات، أو حدّده على الخريطة</small><input id="s-link" type="text" dir="ltr" placeholder="https://maps.google.com/?q=24.15,47.31"></label>
+          <div class="row2"><button type="button" class="btn" id="s-pickbtn">حدد على الخريطة</button><span class="loc-state" id="s-locstate">لم يُحدَّد الموقع بعد (اختياري)</span></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <label for="s-pay">الدفع<select id="s-pay"><option>مدفوع مسبقًا</option><option>الدفع عند الاستلام</option></select></label>
+            <label for="s-val">قيمة الطلب (ر.س)<input id="s-val" type="number" min="0" step="0.5" placeholder="0"></label>
+          </div>
+          <label for="s-ready">جاهزية الطلب<select id="s-ready"><option value="0">جاهز الآن</option><option value="5">خلال 5 دقائق</option><option value="10">خلال 10 دقائق</option><option value="15">خلال 15 دقيقة</option></select></label>
+          <label for="s-note">ملاحظات للمندوب<textarea id="s-note" maxlength="140" placeholder="اختياري"></textarea></label>
+          <button class="btn pri big" type="submit" id="s-submit">إرسال طلب المندوب</button>
+        </form>
+      </section>
+    </div>
+  </div>
+</main>
+
+<!-- ================= المندوب ================= -->
+<main class="wrap" id="v-driver" hidden>
+  <div class="ops">
+    <div class="aside">
+      <section class="card" id="d-map"><div class="card-h"><h2>موقعي والمسار</h2><span id="d-gps" class="gps">GPS</span></div></section>
+    </div>
+    <div class="aside">
+      <section class="card"><div class="card-h"><h2>الطلب الحالي</h2><span class="meta" id="d-job-id"></span></div><div class="card-b" id="d-job" style="display:grid;gap:14px"></div></section>
+      <section class="card"><div class="card-h"><h2>طلبات بانتظار مندوب <span class="count" id="d-qn">0</span></h2></div><div id="d-queue"></div></section>
+      <section class="card"><div class="card-h"><h2>ملخص اليوم</h2></div><div class="card-b" id="d-sum"></div></section>
+    </div>
+  </div>
+</main>
+
+<nav class="rail" aria-label="التنقل الرئيسي" id="rail"></nav>
+<nav class="bnav" aria-label="التنقل الرئيسي"><div class="bnav-in" id="bnav"></div></nav>
+<div class="sheet" id="more" role="dialog" aria-label="المزيد">
+  <div class="sheet-h"></div>
+  <h3>المزيد</h3>
+  <div class="tiles" id="more-tiles"></div>
+  <button type="button" class="btn sheet-out" id="more-out">تسجيل الخروج</button>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-modal="true" role="dialog" aria-labelledby="dr-title"></aside>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="tip" id="tip"></div>
+</div>
+<script>
+/* =====================================================================
+   منصة التوصيل – حي مشرف · نسخة التشغيل الفعلي (Supabase)
+   ضع بيانات مشروعك هنا (Project Settings → API):
+   ===================================================================== */
+const SUPABASE_URL      = '';   // مثال: https://abcdxyz.supabase.co
+const SUPABASE_ANON_KEY = '';   // المفتاح العام anon public
+const AUTH_DOMAIN       = 'mushrif-ops.app';
+const DRIVER_ID         = 1;
+/* ===================================================================== */
+
+const $=s=>document.querySelector(s);
+const MIN=60000;
+const mean=a=>{a=a.filter(v=>v!=null&&!isNaN(v));return a.length?a.reduce((s,v)=>s+v,0)/a.length:0};
+const CFG={target:25,expected:35,hourCap:3,center:[24.1556,47.3120]};
+const fmtT=ms=>ms?new Date(ms).toLocaleTimeString('ar-SA-u-nu-latn',{hour:'2-digit',minute:'2-digit',hour12:true}):'—';
+const mins=n=>{n=Math.round(n);return `${n} ${n>=3&&n<=10?'دقائق':'دقيقة'}`};
+const ordW=n=>`${n} ${n>=3&&n<=10?'طلبات':n>10?'طلبًا':'طلب'}`;
+const hourLbl=h=>{const hh=h%12||12;return h===12?'12 ظ':`${hh} ${h<12?'ص':'م'}`};
+const pct=v=>`${Math.round((v||0)*100)}%`;
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fk=v=>v==null||isNaN(v)?'—':`${(+v).toFixed(1)} كم`;
+const midnight=()=>{const d=new Date();d.setHours(0,0,0,0);return d.getTime()};
+function hav(a1,o1,a2,o2){if([a1,o1,a2,o2].some(v=>v==null))return null;const R=6371,t=x=>x*Math.PI/180;const h=Math.sin(t(a2-a1)/2)**2+Math.cos(t(a1))*Math.cos(t(a2))*Math.sin(t(o2-o1)/2)**2;return 2*R*Math.asin(Math.sqrt(h))}
+const roadKm=(a1,o1,a2,o2)=>{const d=hav(a1,o1,a2,o2);return d==null?null:d*1.3};
+
+/* ---------- icons ---------- */
+const IC={
+ list:'<path d="M9 6h12M9 12h12M9 18h12"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
+ store:'<path d="M4 10v10h16V10"/><path d="M3 10l2-6h14l2 6z"/><path d="M10 20v-5h4v5"/>',
+ bike:'<circle cx="6" cy="17" r="2.6"/><circle cx="18" cy="17" r="2.6"/><path d="M8.6 17h6.8M15 17l-2.4-8H10M13.4 9H16l2 5.4M4 13h5l1.5 4"/>',
+ chart:'<path d="M3 21h18"/><path d="M6 17v-6M11 17V5M16 17v-9M20 17v-3"/>',
+ box:'<path d="M3 7.5l9-4.5 9 4.5-9 4.5z"/><path d="M3 7.5V17l9 4.5 9-4.5V7.5M12 12v9.5"/>',
+ check:'<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.7 2.7L16 9.8"/>',
+ flow:'<path d="M4 7h11l-3-3M20 17H9l3 3"/>',
+ plus:'<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',
+ alert:'<path d="M12 3l9.5 17h-19z"/><path d="M12 10v4.5M12 17.5v.01"/>',
+ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5.2l3.3 2"/>',
+ x:'<path d="M6 6l12 12M18 6L6 18"/>',
+ pin:'<path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',
+ ok:'<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+ nav:'<path d="M3 11l18-8-8 18-2-8z"/>',
+ user:'<circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/>',
+ dash:'<rect x="3" y="3" width="7.5" height="9" rx="2"/><rect x="13.5" y="3" width="7.5" height="5.5" rx="2"/><rect x="13.5" y="11.5" width="7.5" height="9.5" rx="2"/><rect x="3" y="15" width="7.5" height="6" rx="2"/>',
+ orders:'<rect x="5" y="4" width="14" height="17" rx="2.5"/><path d="M9 4V2.8h6V4M9 10h6M9 13.5h6M9 17h3.5"/>',
+ route:'<circle cx="6" cy="18" r="2.4"/><path d="M18 10.5s-3.6-3.1-3.6-5.8a3.6 3.6 0 0 1 7.2 0c0 2.7-3.6 5.8-3.6 5.8z"/><circle cx="18" cy="4.8" r=".9"/><path d="M8.4 18H14a3 3 0 0 0 0-6h-4a3 3 0 0 1 0-6h1.5"/>',
+ cog:'<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
+ more:'<circle cx="6" cy="6" r="2.2"/><circle cx="18" cy="6" r="2.2"/><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="18" r="2.2"/>'
+};
+const ico=(n,sw=2)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[n]}</svg>`;
+
+/* ---------- state ---------- */
+let sb=null,ALL=[],orders=[],SL=[],SM={};
+const DRV={id:DRIVER_ID,name:'المندوب 01',lat:null,lng:null,updated:null};
+const S={role:null,storeId:null,filter:{type:'group',key:'all'},sel:null,period:'today',lastUp:0,sortAvg:false,sTab:'active',picking:null,pick:null,gps:'off',live:false,busy:false,fitted:false};
+
+const ST={new:'قيد التجهيز',waiting:'بانتظار المندوب',to_store:'متجه للمحل',picked:'تم استلام الطلب',to_customer:'في الطريق للعميل',delivered:'تم التسليم',late:'متأخر',cancelled:'ملغي'};
+const GROUPS={all:null,new:['new'],progress:['waiting','to_store','picked','to_customer'],late:['late'],done:['delivered']};
+const GLBL={all:'جميع الطلبات',new:'الجديدة',progress:'قيد التنفيذ',late:'المتأخرة',done:'المكتملة'};
+const ACTIVE=['new','waiting','to_store','picked','to_customer'];
+const isActive=o=>ACTIVE.includes(o.stage);
+const elapsed=o=>((o.ev.delivered||o.ev.cancelled||Date.now())-o.created)/MIN;
+const lateBy=o=>isActive(o)?Math.round(elapsed(o)-CFG.expected):0;
+const disp=o=>isActive(o)&&lateBy(o)>0?'late':o.stage;
+const sinceReady=o=>(Date.now()-(o.ev.ready||o.ev.accepted||o.created))/MIN;
+const storeName=id=>SM[id]?.name||`محل ${id}`;
+function matches(o){if(S.role==='store'&&o.store!==S.storeId)return false;const f=S.filter;if(f.type==='status')return disp(o)===f.key;const g=GROUPS[f.key];return !g||g.includes(disp(o))}
+
+function fromRow(r){
+ const t=x=>x?Date.parse(x):undefined;
+ const o={id:r.id,store:r.store_id,driver:r.driver_id,stage:r.status,name:r.customer_name,loc:r.customer_loc,lat:r.cust_lat,lng:r.cust_lng,pay:r.pay_method,value:r.value!=null?+r.value:null,note:r.note,dist:r.dist_km!=null?+r.dist_km:null,created:t(r.created_at),readyDue:t(r.ready_due),reason:r.cancel_reason,
+  ev:{created:t(r.created_at),accepted:t(r.accepted_at),ready:t(r.ready_at),assigned:t(r.assigned_at),arrived:t(r.arrived_at),picked:t(r.picked_at),onway:t(r.onway_at),delivered:t(r.delivered_at),cancelled:t(r.cancelled_at)}};
+ if(o.ev.delivered){o.total=Math.round((o.ev.delivered-o.created)/MIN);
+  o.waitMin=o.ev.picked&&o.ev.arrived?Math.max(0,Math.round((o.ev.picked-o.ev.arrived)/MIN)):null;
+  o.pickMin=o.ev.picked&&o.ev.assigned?Math.round((o.ev.picked-o.ev.assigned)/MIN):null;
+  o.dropMin=o.ev.picked?Math.round((o.ev.delivered-o.ev.picked)/MIN):null}
+ return o;
+}
+function upsert(o){const i=ALL.findIndex(x=>x.id===o.id);if(i>=0)ALL[i]=o;else ALL.push(o)}
+function derive(){const m=midnight();orders=ALL.filter(o=>o.created>=m||isActive(o)).sort((a,b)=>a.created-b.created)}
+function setStores(rows){SL=rows.map(r=>({i:r.id,name:r.name,type:r.type||'',lat:r.lat,lng:r.lng,active:r.active!==false}));SM={};SL.forEach(s=>SM[s.i]=s)}
+function setDriver(r){if(!r)return;DRV.name=r.name||DRV.name;DRV.lat=r.lat;DRV.lng=r.lng;DRV.updated=r.updated_at?Date.parse(r.updated_at):null}
+function setCfg(r){if(!r)return;CFG.target=r.daily_target;CFG.expected=r.expected_min;CFG.hourCap=+r.hour_cap;CFG.center=[r.center_lat,r.center_lng]}
+
+/* ---------- driver job ---------- */
+const job=()=>orders.find(o=>o.driver===DRV.id&&['to_store','picked','to_customer'].includes(o.stage));
+function phase(){const j=job();if(!j)return 'idle';if(j.stage==='to_store')return j.ev.arrived?'at_store':'to_store';return 'to_customer'}
+const PHASE_TXT={idle:'متاح – بانتظار طلب',to_store:'في طريقه إلى المحل',at_store:'في المحل',to_customer:'في الطريق للعميل'};
+const waitingSorted=()=>orders.filter(o=>o.stage==='waiting').sort((a,b)=>(lateBy(b)>0)-(lateBy(a)>0)||(a.ev.ready||a.created)-(b.ev.ready||b.created));
+const nextJob=()=>waitingSorted()[0];
+function driverRem(){const j=job();if(!j||DRV.lat==null)return null;const ph=phase();if(ph==='to_store'||ph==='at_store'){const s=SM[j.store];return s?roadKm(DRV.lat,DRV.lng,s.lat,s.lng):null}return roadKm(DRV.lat,DRV.lng,j.lat,j.lng)}
+const driverStale=()=>!DRV.updated||Date.now()-DRV.updated>5*MIN;
+
+/* ---------- toast & tooltip ---------- */
+let tt;function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('on'),2600)}
+const tip=$('#tip');
+document.addEventListener('pointermove',e=>{const t=e.target.closest?.('[data-tip]');if(!t){tip.classList.remove('on');return}tip.textContent=t.dataset.tip;tip.classList.add('on');const w=tip.offsetWidth;tip.style.left=Math.max(8,Math.min(innerWidth-w-8,e.clientX-w/2))+'px';tip.style.top=(e.clientY-38)+'px'});
+
+/* =====================================================================
+   MAP (Leaflet + OpenStreetMap)
+   ===================================================================== */
+let LM,LY,drvMarker,pickMarker;
+const STORE_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10v10h16V10"/><path d="M3 10l2-6h14l2 6z"/></svg>';
+function initMap(){
+ LM=L.map('lmap',{zoomControl:true,attributionControl:true}).setView(CFG.center,14);
+ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(LM);
+ LY={route:L.layerGroup().addTo(LM),cust:L.layerGroup().addTo(LM),stores:L.layerGroup().addTo(LM)};
+ drvMarker=L.marker(CFG.center,{icon:L.divIcon({className:'',html:'<div class="lm-drv">01</div>',iconSize:[34,34],iconAnchor:[17,17]}),zIndexOffset:1000});
+ drvMarker.on('click',()=>{const j=job();if(j)openOrder(j.id)});
+ LM.on('click',onMapClick);
+}
+function moveMap(host){$(host).append($('#map-stage'));if($('#map-foot'))$(host).append($('#map-foot'));setTimeout(()=>LM.invalidateSize(),60)}
+function fitMap(force){
+ if(S.fitted&&!force)return;const pts=[];
+ SL.forEach(s=>{if(s.lat!=null&&(S.role!=='store'||s.i===S.storeId))pts.push([s.lat,s.lng])});
+ if(DRV.lat!=null)pts.push([DRV.lat,DRV.lng]);
+ orders.filter(o=>isActive(o)&&o.lat!=null&&matches(o)).forEach(o=>pts.push([o.lat,o.lng]));
+ if(pts.length>1)LM.fitBounds(pts,{padding:[40,40],maxZoom:16});else if(pts.length===1)LM.setView(pts[0],15);else LM.setView(CFG.center,14);
+ S.fitted=true;
+}
+function renderMap(){
+ if(!LM)return;
+ const sel=orders.find(o=>o.id===S.sel);
+ LY.stores.clearLayers();LY.cust.clearLayers();LY.route.clearLayers();
+ SL.forEach(s=>{if(s.lat==null)return;
+  const ready=orders.filter(o=>o.store===s.i&&o.stage==='waiting').length;const hl=sel&&sel.store===s.i;
+  const m=L.marker([s.lat,s.lng],{icon:L.divIcon({className:'',html:`<div class="lm-store${hl?' hl':''}">${STORE_SVG}${ready?`<span class="pk">${ready}</span>`:''}</div>`,iconSize:[30,30],iconAnchor:[15,15]})});
+  m.bindTooltip(esc(s.name),{direction:'bottom',offset:[0,14],className:'lbl',permanent:LM.getZoom()>=15});
+  m.on('click',()=>openStore(s.i));LY.stores.addLayer(m);
+ });
+ const allMode=S.filter.type==='group'&&S.filter.key==='all';
+ orders.filter(o=>matches(o)&&o.stage!=='cancelled'&&o.lat!=null).forEach(o=>{
+  const d=disp(o),past=d==='delivered'&&allMode,isSel=o.id===S.sel,sz=isSel?32:24;
+  const m=L.marker([o.lat,o.lng],{icon:L.divIcon({className:'',html:`<div class="lm-cust s-${d}${past?' past':''}${isSel?' sel':''}">${ico('user',2.6)}</div>`,iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),zIndexOffset:isSel?500:0});
+  m.bindTooltip(`#${o.id} · ${ST[d]}`,{direction:'top',className:'lbl'});m.on('click',()=>openOrder(o.id));LY.cust.addLayer(m);
+ });
+ // routes: driver → store → customer
+ const j=job();
+ if(j){const s=SM[j.store],ph=phase();const line=[];
+  if(DRV.lat!=null)line.push([DRV.lat,DRV.lng]);
+  if(ph!=='to_customer'&&s?.lat!=null)line.push([s.lat,s.lng]);
+  if(line.length>1)L.polyline(line,{color:getVar('--accent'),weight:5,opacity:.9}).addTo(LY.route);
+  if(j.lat!=null){const from=ph==='to_customer'?(DRV.lat!=null?[DRV.lat,DRV.lng]:null):(s?.lat!=null?[s.lat,s.lng]:null);
+   if(from)L.polyline([from,[j.lat,j.lng]],{color:ph==='to_customer'?getVar('--accent'):getVar('--muted'),weight:ph==='to_customer'?5:4,dashArray:ph==='to_customer'?null:'10 8',opacity:.75}).addTo(LY.route)}
+ }
+ if(sel&&sel!==j&&sel.lat!=null&&SM[sel.store]?.lat!=null)L.polyline([[SM[sel.store].lat,SM[sel.store].lng],[sel.lat,sel.lng]],{color:getVar('--accent'),weight:4,dashArray:'2 9',lineCap:'round'}).addTo(LY.route);
+ drawDriver();renderMapFoot();
+ // chips
+ const ch=$('#map-chips');if(ch)ch.innerHTML=Object.keys(GROUPS).map(k=>{const n=k==='all'?orders.length:orders.filter(o=>GROUPS[k].includes(disp(o))).length;const on=S.filter.type==='group'&&S.filter.key===k;return `<button type="button" class="chip${on?' on':''}" data-f="${k}">${GLBL[k]} <span class="n">${n}</span></button>`}).join('');
+}
+function getVar(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim()||'#0A97AD'}
+function drawDriver(){
+ if(!LM)return;
+ if(DRV.lat==null){if(LM.hasLayer(drvMarker))LM.removeLayer(drvMarker);return}
+ drvMarker.setLatLng([DRV.lat,DRV.lng]);if(!LM.hasLayer(drvMarker))drvMarker.addTo(LM);
+ const stale=driverStale();drvMarker.setIcon(L.divIcon({className:'',html:`<div class="lm-drv${stale?' stale':''}">01</div>`,iconSize:[34,34],iconAnchor:[17,17]}));
+ const j=job(),ph=phase(),rem=driverRem();
+ const html=`<b>${esc(DRV.name)}</b><br><span class="st">${PHASE_TXT[ph]}</span>${j?`<br>الطلب #${j.id}${rem!=null?`<br><span class="rm">المسافة المتبقية ${rem.toFixed(1)} كم</span>`:''}`:''}${stale?`<br><span class="rm">آخر موقع ${DRV.updated?'قبل '+mins((Date.now()-DRV.updated)/MIN):'غير معروف'}</span>`:''}`;
+ if(drvMarker.getTooltip())drvMarker.setTooltipContent(html);else drvMarker.bindTooltip(html,{permanent:true,direction:'top',offset:[0,-18],className:'drv-tip'});
+ const dr=$('#d-rem');if(dr&&rem!=null)dr.textContent=rem.toFixed(1);
+}
+function renderMapFoot(){
+ const f=$('#map-foot');if(!f)return;const j=job(),ph=phase(),w=waitingSorted();
+ f.innerHTML=`<div><small>الطلب الحالي</small><b>${j?`#${j.id} · ${esc(storeName(j.store))}`:'لا يوجد'}</b></div><div><small>الوجهة التالية</small><b>${j?(ph==='to_customer'?'العميل '+esc(j.name):esc(storeName(j.store))):'—'}</b></div><div><small>في الطابور</small><b>${w.length?ordW(w.length):'لا توجد طلبات'}</b></div>`;
+}
+function onMapClick(e){
+ if(!S.picking)return;const {lat,lng}=e.latlng;
+ if(S.picking==='cust'){S.pick={lat,lng};setPickMarker(lat,lng);updateLocState();toast('تم تحديد موقع العميل')}
+ else if(S.picking==='store'){saveStoreLoc(lat,lng)}
+ stopPicking();
+}
+function setPickMarker(lat,lng){if(pickMarker)LM.removeLayer(pickMarker);if(lat==null)return;pickMarker=L.marker([lat,lng],{icon:L.divIcon({className:'',html:'<div class="lm-pick"></div>',iconSize:[26,26],iconAnchor:[13,26]})}).addTo(LM)}
+function startPicking(kind){S.picking=kind;const st=$('#map-stage');st.classList.add('picking');let bar=st.querySelector('.pick-bar');if(!bar){bar=document.createElement('div');bar.className='pick-bar';st.append(bar)}
+ bar.innerHTML=`${kind==='cust'?'اضغط على موقع العميل':'اضغط على موقع المحل'}<button type="button" id="pick-cancel">إلغاء</button>`;
+ $('#pick-cancel').onclick=e=>{e.stopPropagation();stopPicking()};st.scrollIntoView({behavior:'smooth',block:'center'})}
+function stopPicking(){S.picking=null;const st=$('#map-stage');st.classList.remove('picking');st.querySelector('.pick-bar')?.remove()}
+
+/* =====================================================================
+   ADMIN RENDERING
+   ===================================================================== */
+function counts(){
+ const c={total:orders.length,done:0,progress:0,new:0,late:0,cancelled:0,waiting:0,withDrv:0};
+ orders.forEach(o=>{const d=disp(o);if(d==='delivered')c.done++;else if(d==='new')c.new++;else if(d==='late')c.late++;else if(d==='cancelled')c.cancelled++;else{c.progress++;if(d==='waiting')c.waiting++;else c.withDrv++}});
+ c.del=orders.filter(o=>o.stage==='delivered');c.avg=Math.round(mean(c.del.map(o=>o.total)));c.maxLate=Math.max(0,...orders.map(lateBy));return c;
+}
+function renderKPIs(c){
+ const K=[
+  {k:'all',l:'طلبات اليوم',v:c.total,s:`${pct(c.total/CFG.target)} من المستهدف (${CFG.target})`,i:'box',col:'var(--navy-2)'},
+  {k:'done',l:'طلبات مكتملة',v:c.done,s:c.total?`${pct(c.done/c.total)} من طلبات اليوم`:'لا توجد طلبات بعد',i:'check',col:'var(--ok)'},
+  {k:'progress',l:'طلبات قيد التنفيذ',v:c.progress,s:`${c.waiting} بانتظار المندوب · ${c.withDrv} معه`,i:'flow',col:'var(--accent)'},
+  {k:'new',l:'قيد التجهيز',v:c.new,s:'لم تجهز في المحل بعد',i:'plus',col:'var(--info)'},
+  {k:'late',l:'طلبات متأخرة',v:c.late,s:c.late?`أعلى تأخير +${mins(c.maxLate)}`:'لا توجد طلبات متأخرة',i:'alert',col:'var(--crit)',alarm:c.late>0},
+  {k:'avg',l:'متوسط زمن التوصيل',v:c.del.length?c.avg:'—',u:c.del.length?'دقيقة':'',s:`المستهدف ${CFG.expected} دقيقة أو أقل`,i:'clock',col:'var(--violet)'}
+ ];
+ $('#kpis').innerHTML=K.map(x=>{const on=(S.filter.type==='group'&&S.filter.key===x.k&&x.k!=='all')||(x.k==='avg'&&S.sortAvg);return `<button type="button" class="kpi${on?' on':''}${x.alarm?' alarm':''}" data-kpi="${x.k}" style="--kc:${x.col}" aria-pressed="${on}"><div class="kpi-top"><span class="kpi-l">${x.l}</span><span class="kpi-ic">${ico(x.i)}</span></div><div class="kpi-v num">${x.v}${x.u?`<small>${x.u}</small>`:''}</div><div class="kpi-s">${x.s}</div></button>`}).join('');
+}
+const PRI={late:0,to_customer:1,picked:2,to_store:3,waiting:4,new:5,delivered:6,cancelled:7};
+function durCell(o){const d=disp(o);
+ if(d==='delivered')return `<span class="num">${mins(o.total)}</span>`;
+ if(d==='cancelled')return '<span class="muted">—</span>';
+ return `<span class="num">${mins(elapsed(o))}</span>${d==='late'?`<span class="late-tag num">+${lateBy(o)}</span>`:' <span class="muted" style="font-size:12px">جارٍ</span>'}`}
+function renderTable(){
+ let rows=orders.filter(matches);
+ rows.sort((a,b)=>S.sortAvg?(b.total||0)-(a.total||0):(PRI[disp(a)]-PRI[disp(b)])||(b.created-a.created));
+ const active=orders.filter(isActive).length;
+ $('#ord-n').textContent=S.filter.type==='group'&&S.filter.key==='all'?`${active} نشط`:rows.length;
+ const f=S.filter;const lbl=f.type==='status'?ST[f.key]:(f.key!=='all'?GLBL[f.key]:(S.sortAvg?'الأطول توصيلًا':''));
+ $('#ord-filter').innerHTML=lbl?`<button type="button" class="filter-tag" id="clr">فلتر: ${lbl} ${ico('x',2.4)}</button>`:'';
+ $('#ord-body').innerHTML=rows.length?rows.map(o=>{const d=disp(o);const withDrv=o.driver!=null&&o.stage!=='cancelled';
+  return `<tr data-order="${o.id}" class="${d==='late'?'is-late':''}${o.id===S.sel?' is-sel':''}">
+  <td><span class="oid">#${o.id}</span></td>
+  <td><button type="button" class="lnk" data-store="${o.store}">${esc(storeName(o.store))}</button></td>
+  <td>${withDrv?`<button type="button" class="lnk" data-driver="1">${esc(DRV.name)}</button>`:o.stage==='cancelled'?'<span class="muted">—</span>':'<span class="muted">بانتظار التعيين</span>'}</td>
+  <td><button type="button" class="pill s-${d}" data-status="${d}" title="تصفية حسب: ${ST[d]}">${ST[d]}</button></td>
+  <td><span class="mono">${fmtT(o.created)}</span></td>
+  <td>${durCell(o)}</td>
+  <td class="num">${fk(o.dist)}</td>
+  <td>${esc(o.name)}</td>
+  <td><button type="button" class="btn-sm" data-view="${o.id}">عرض</button></td></tr>`}).join(''):`<tr><td colspan="9" class="empty">لا توجد طلبات ضمن هذا الفلتر.</td></tr>`;
+}
+function renderAlerts(){
+ const A=[];
+ orders.filter(o=>disp(o)==='late').forEach(o=>A.push({sev:'crit',t:`الطلب #${o.id} متأخر عن الوقت المتوقع بـ ${mins(lateBy(o))}.`,s:`${esc(storeName(o.store))} · ${ST[o.stage]}`,a:{order:o.id},w:100+lateBy(o)}));
+ orders.filter(o=>o.stage==='waiting'&&disp(o)!=='late'&&sinceReady(o)>=4).forEach(o=>A.push({sev:'warn',t:`الطلب #${o.id} بانتظار المندوب منذ ${mins(sinceReady(o))}.`,s:`${esc(storeName(o.store))} · الطلب جاهز للاستلام`,a:{order:o.id},w:60+sinceReady(o)}));
+ if(driverStale()&&orders.some(isActive))A.push({sev:'warn',t:`لا يصل موقع المندوب ${DRV.updated?'منذ '+mins((Date.now()-DRV.updated)/MIN):'حتى الآن'}.`,s:'تأكد أن واجهة المندوب مفتوحة والموقع مفعّل',a:{driver:1},w:55});
+ SL.forEach(s=>{const n=orders.filter(o=>o.store===s.i&&(Date.now()-o.created)<=20*MIN).length;if(n>=3)A.push({sev:'yel',t:`المحل "${esc(s.name)}" لديه ${ordW(n)} خلال آخر 20 دقيقة.`,s:'ضغط مرتفع على محل واحد',a:{store:s.i},w:30})});
+ const noLoc=SL.filter(s=>s.lat==null).length;if(noLoc)A.push({sev:'yel',t:`${noLoc} من المحلات لم تحدد موقعها على الخريطة بعد.`,s:'يحددها المحل من واجهته أو الإدارة من صفحة المحل',a:{store:SL.find(s=>s.lat==null).i},w:5});
+ A.sort((a,b)=>b.w-a.w);
+ $('#al-n').textContent=A.length;$('#al-n').className='count'+(A.some(a=>a.sev==='crit')?' crit':'');
+ $('#alerts').innerHTML=A.length?A.map(x=>`<li><button type="button" class="alert" ${x.a.order?`data-view="${x.a.order}"`:x.a.store?`data-store="${x.a.store}"`:'data-driver="1"'}><i class="sev ${x.sev}"></i><div><p>${x.t}</p><small>${x.s}</small></div><span class="go">${x.a.order?'عرض الطلب':x.a.store?'عرض المحل':'الخريطة'}</span></button></li>`).join(''):'<li class="empty">لا توجد تنبيهات. التشغيل مستقر.</li>';
+}
+
+/* hourly profile from the last 28 days (excluding today) */
+function hourProfile(){
+ const m=midnight(),from=m-28*864e5;const H=ALL.filter(o=>o.created>=from&&o.created<m&&o.stage!=='cancelled');
+ const days=new Set(H.map(o=>new Date(o.created).toDateString())).size;
+ const cnt={};H.forEach(o=>{const h=new Date(o.created).getHours();cnt[h]=(cnt[h]||0)+1});
+ const hrs=Object.keys(cnt).map(Number).sort((a,b)=>a-b);
+ if(!hrs.length)return {days,rows:[]};
+ const rows=[];for(let h=hrs[0];h<=hrs.at(-1);h++)rows.push([h,days?+((cnt[h]||0)/days).toFixed(1):0]);
+ return {days,rows};
+}
+function renderCapacity(c){
+ const ratio=c.total/CFG.target;const P=hourProfile();const over=P.rows.filter(f=>f[1]>CFG.hourCap);const peak=P.rows.length?P.rows.reduce((a,b)=>b[1]>a[1]?b:a):null;
+ let st;
+ if(ratio>1)st={k:'crit',t:'تجاوز الحد التشغيلي اليومي للمندوب',p:`الطلبات ${c.total} مقابل طاقة ${CFG.target} طلبًا يوميًا.`,i:'alert'};
+ else if(ratio>=.8)st={k:'warn',t:'تنبيه: حجم الطلبات يقترب من الحد التشغيلي للمندوب.',p:`وصل الحجم إلى ${pct(ratio)} من الطاقة اليومية.`,i:'alert'};
+ else st={k:'ok',t:'ضمن الطاقة التشغيلية',p:`الحجم الحالي ${pct(ratio)} من الطاقة اليومية.`,i:'ok'};
+ const cv={crit:['var(--crit)','var(--crit-soft)'],warn:['var(--warn)','var(--warn-soft)'],ok:['var(--ok)','var(--ok-soft)']}[st.k];
+ $('#cap').innerHTML=`
+ <div class="cap-state" style="--c:${cv[0]};--cs:${cv[1]}"><span class="ic">${ico(st.i,2.4)}</span><div><b>${st.t}</b><p>${st.p}</p></div></div>
+ <div class="meter"><div class="meter-row"><span>الطلبات المنفذة</span><b class="num">${c.done} <small>/ ${CFG.target}</small></b></div><div class="bar" style="--bc:var(--ok)"><i style="width:${Math.min(100,c.done/CFG.target*100)}%"></i></div></div>
+ <div class="meter"><div class="meter-row"><span>إجمالي طلبات اليوم</span><b class="num">${c.total} <small>/ ${CFG.target}</small></b></div><div class="bar" style="--bc:${cv[0]}"><i style="width:${Math.min(100,ratio*100)}%"></i><span class="tick" style="inset-inline-start:80%" title="حد التنبيه 80%"></span></div></div>
+ <div class="kv"><div><small>الطاقة المستهدفة</small><b class="num">${CFG.target} طلبًا يوميًا</b></div><div><small>طاقة المندوب بالساعة</small><b class="num">≈ ${CFG.hourCap} طلبات</b></div><div><small>ساعات تتجاوز الطاقة</small><b class="num" style="color:${over.length?'var(--warn)':'inherit'}">${P.rows.length?`${over.length} من ${P.rows.length}`:'—'}</b></div><div><small>ذروة الطلب</small><b class="num">${peak?`${hourLbl(peak[0])} · ${peak[1]}`:'تحتاج بيانات'}</b></div></div>
+ <p class="reco"><b>التوصية:</b> ${st.k==='ok'&&!over.length?'الحجم الحالي ضمن قدرة مندوب واحد. استمر بالمتابعة.':`راجع توزيع الطلبات أو دراسة إضافة مندوب${peak?`، خاصة حول ${hourLbl(peak[0])}`:''}.`}</p>`;
+}
+
+/* ---------- charts ---------- */
+function niceStep(max,int=true){if(max<=0)return 1;const r=max/4,m=Math.pow(10,Math.floor(Math.log10(r))),n=r/m;let s=(n<=1?1:n<=2?2:n<=2.5?2.5:n<=5?5:10)*m;if(int)s=Math.max(1,Math.round(s));return s}
+function barChart({labels,series,ref,refLbl,W=560,H=210,every=1,showVals=false,unit=''}){
+ if(!labels.length)return '<div class="empty-chart">لا توجد بيانات بعد.</div>';
+ const pr=34,pl=8,pt=ref?24:14,pb=26,n=labels.length,cw=W-pr-pl,ch=H-pt-pb;
+ const tot=labels.map((_,i)=>series.reduce((s,se)=>s+(se.values[i]||0),0));
+ let max=Math.max(...tot,ref||0,1);const step=niceStep(max,true);max=Math.ceil(max/step)*step;
+ const y=v=>pt+ch-(v/max)*ch,bw=cw/n,xl=i=>W-pr-(i+1)*bw;
+ let s=`<svg class="chart" viewBox="0 0 ${W} ${H}" role="img">`;
+ for(let v=0;v<=max;v+=step)s+=`<line class="grid" x1="${pl}" x2="${W-pr}" y1="${y(v)}" y2="${y(v)}"/><text class="axn" x="${W-pr+7}" y="${y(v)+4}">${v}</text>`;
+ labels.forEach((l,i)=>{let acc=0;const bx=xl(i)+bw*.2,bwid=Math.max(2,bw*.6);
+  series.forEach(se=>{const v=se.values[i]||0;if(v>0){const cls=typeof se.cls==='function'?se.cls(v,i):se.cls;s+=`<rect class="bar-r ${cls}" x="${bx}" y="${y(acc+v)}" width="${bwid}" height="${y(acc)-y(acc+v)}" rx="${Math.min(3,bwid/3)}" data-tip="${esc(l)} · ${se.name?se.name+': ':''}${+v.toFixed(1)}${unit}"/>`}acc+=v});
+  if(showVals&&tot[i])s+=`<text class="val" x="${bx+bwid/2}" y="${y(tot[i])-5}">${+tot[i].toFixed(1)}</text>`;
+  if(i%every===0)s+=`<text class="ax" x="${xl(i)+bw/2}" y="${H-7}" text-anchor="middle">${esc(l)}</text>`;
+ });
+ if(ref)s+=`<line class="ref" x1="${pl}" x2="${W-pr}" y1="${y(ref)}" y2="${y(ref)}"/><text class="ref-t" x="${pl+2}" y="${y(ref)-6}">${refLbl}</text>`;
+ return s+'</svg>';
+}
+function lineChart({labels,values,W=560,H=190,every=1,unit='',dec=0,ref,refLbl}){
+ const vs=values.filter(v=>v!=null);if(!vs.length)return '<div class="empty-chart">لا توجد بيانات بعد.</div>';
+ const pr=36,pl=12,pt=14,pb=26,n=labels.length,cw=W-pr-pl,ch=H-pt-pb;
+ let lo=Math.min(...vs,ref??Infinity),hi=Math.max(...vs,ref??-Infinity);
+ const span=hi-lo||1;const step=niceStep(span*1.6,dec===0);lo=Math.max(0,Math.floor((lo-span*.3)/step)*step);hi=Math.ceil((hi+span*.2)/step)*step;if(hi<=lo)hi=lo+step;
+ const y=v=>pt+ch-((v-lo)/(hi-lo))*ch,x=i=>n===1?W-pr-cw/2:W-pr-(i/(n-1))*cw;
+ let s=`<svg class="chart" viewBox="0 0 ${W} ${H}" role="img">`;
+ for(let v=lo;v<=hi+1e-9;v+=step)s+=`<line class="grid" x1="${pl}" x2="${W-pr}" y1="${y(v)}" y2="${y(v)}"/><text class="axn" x="${W-pr+7}" y="${y(v)+4}">${+v.toFixed(dec)}</text>`;
+ const P=values.map((v,i)=>v==null?null:[x(i),y(v)]).filter(Boolean);
+ s+=`<path class="ar" d="M${P[0][0]},${pt+ch} L${P.map(p=>p.join(',')).join(' L')} L${P.at(-1)[0]},${pt+ch}Z"/><path class="ln" d="M${P.map(p=>p.join(',')).join(' L')}"/>`;
+ if(ref!=null)s+=`<line class="ref" x1="${pl}" x2="${W-pr}" y1="${y(ref)}" y2="${y(ref)}"/><text class="ref-t" x="${pl+2}" y="${y(ref)-6}">${refLbl}</text>`;
+ values.forEach((v,i)=>{if(v==null)return;const last=i===values.length-1;if(n<=14||last)s+=`<circle class="${last?'pt-end':'pt'}" cx="${x(i)}" cy="${y(v)}" r="${last?5:3.2}"/>`;s+=`<rect class="hit" x="${x(i)-cw/Math.max(n,1)/2}" y="${pt}" width="${cw/Math.max(n-1,1)}" height="${ch}" data-tip="${esc(labels[i])} · ${v.toFixed(dec)}${unit}"/>`});
+ labels.forEach((l,i)=>{if(i%every===0)s+=`<text class="ax" x="${x(i)}" y="${H-7}" text-anchor="middle">${esc(l)}</text>`});
+ return s+'</svg>';
+}
+function ring(v,col,label){const r=48,C=2*Math.PI*r;return `<div class="ring-wrap"><svg viewBox="0 0 118 118" width="118" height="118"><circle class="ring-bg" cx="59" cy="59" r="${r}" stroke-width="10"/><circle class="ring-fg" cx="59" cy="59" r="${r}" stroke-width="10" stroke="${col}" stroke-dasharray="${C}" stroke-dashoffset="${C*(1-Math.min(1,v||0))}" transform="rotate(-90 59 59)"/></svg><div class="rv"><div><b class="num">${pct(v)}</b><small>${label}</small></div></div></div>`}
+function todaySlots(list,key){const ts=list.map(key).filter(Boolean);if(!ts.length)return {hrs:[],vals:[]};const s=new Date(Math.min(...ts));s.setMinutes(0,0,0);const out=[];for(let t=s.getTime();t<=Date.now();t+=3600000)out.push(t);return{hrs:out.map(t=>new Date(t).getHours()),vals:out.map(t=>list.filter(o=>{const k=key(o);return k>=t&&k<t+3600000}).length)}}
+
+function renderDriverPerf(c){
+ const del=c.del,canc=orders.filter(o=>o.stage==='cancelled').length;
+ const recv=orders.filter(o=>o.driver===DRV.id).length;
+ const lateN=del.filter(o=>o.total>CFG.expected).length+c.late;
+ const comp=del.length/Math.max(1,del.length+canc);
+ const {hrs,vals}=todaySlots(del,o=>o.ev.delivered);
+ const ph=phase();const phaseCol={idle:'var(--grey)',at_store:'var(--warn)'}[ph]||'var(--accent)';
+ $('#drv-perf').innerHTML=`
+ <div class="drv-head"><div class="drv-av">01</div><div style="flex:1;min-width:0"><h3><button type="button" class="lnk" data-driver="1">${esc(DRV.name)}</button></h3><p>${driverStale()?`آخر موقع ${DRV.updated?'قبل '+mins((Date.now()-DRV.updated)/MIN):'غير معروف'}`:'الموقع مباشر'}</p></div><span class="pill" style="--c:${phaseCol};--cs:color-mix(in srgb,${phaseCol} 14%,transparent);cursor:default">${PHASE_TXT[ph]}</span></div>
+ <div class="drv-grid">${ring(comp,'var(--ok)','معدل الإكمال')}
+ <div class="stats">
+  <div class="stat"><small>طلبات مستلمة</small><b class="num">${recv}</b></div>
+  <div class="stat"><small>طلبات مكتملة</small><b class="num">${del.length}</b></div>
+  <div class="stat"><small>ملغاة</small><b class="num">${canc}</b></div>
+  <div class="stat${lateN?' crit':''}"><small>متأخرة</small><b class="num">${lateN}</b></div>
+  <div class="stat"><small>متوسط زمن الاستلام</small><b class="num">${del.length?Math.round(mean(del.map(o=>o.pickMin))):'—'} <small>د</small></b></div>
+  <div class="stat"><small>متوسط زمن التوصيل</small><b class="num">${del.length?Math.round(mean(del.map(o=>o.dropMin))):'—'} <small>د</small></b></div>
+ </div></div>
+ <div class="sub-h"><span>الطلبات المسلّمة حسب الساعة</span><span class="num">${ordW(del.length)}</span></div>
+ ${barChart({labels:hrs.map(hourLbl),series:[{values:vals,cls:'b-main',name:'مسلّمة'}],H:150,showVals:true,every:hrs.length>9?2:1})}`;
+}
+function renderEff(c){
+ const del=c.del;const onTime=del.length?del.filter(o=>o.total<=CFG.expected).length/del.length:0;
+ const wait=mean(del.map(o=>o.waitMin)),avgDel=mean(del.map(o=>o.total)),dist=mean(orders.map(o=>o.dist));
+ const first=orders.length?Math.min(...orders.map(o=>o.created)):Date.now();const span=Math.max(MIN,Date.now()-first);
+ const perH=c.total/Math.max(1,span/3600000);const util=Math.min(1,del.reduce((s,o)=>s+(o.ev.delivered-(o.ev.assigned||o.ev.delivered))/MIN,0)/(span/MIN));
+ const T=[
+  {l:'نسبة التسليم في الوقت',v:del.length?pct(onTime):'—',f:onTime,t:.9,tl:'المستهدف 90%',g:!del.length?'':onTime>=.9?'good':onTime>=.8?'mid':'bad',bc:'var(--ok)'},
+  {l:'متوسط زمن انتظار المندوب',v:del.length?wait.toFixed(0):'—',u:'دقائق',f:wait/15,t:8/15,tl:'المستهدف 8 دقائق أو أقل',g:!del.length?'':wait<=8?'good':wait<=11?'mid':'bad',bc:'var(--warn)'},
+  {l:'متوسط زمن التوصيل',v:del.length?avgDel.toFixed(0):'—',u:'دقيقة',f:avgDel/45,t:CFG.expected/45,tl:`المستهدف ${CFG.expected} دقيقة أو أقل`,g:!del.length?'':avgDel<=CFG.expected?'good':'bad',bc:'var(--accent)'},
+  {l:'متوسط المسافة',v:dist?dist.toFixed(1):'—',u:'كم',f:dist/5,t:3/5,tl:'نطاق الحي حتى 3 كم',g:'',bc:'var(--navy-2)'},
+  {l:'عدد الطلبات لكل ساعة',v:perH.toFixed(1),f:perH/(CFG.hourCap*1.5),t:1/1.5,tl:`طاقة المندوب ≈ ${CFG.hourCap} بالساعة`,g:perH<=CFG.hourCap?'good':'mid',bc:'var(--violet)'},
+  {l:'نسبة استغلال المندوب',v:pct(util),f:util,t:.85,tl:'النطاق الصحي 70–85%',g:util<=.85?'good':util<=.92?'mid':'bad',bc:'var(--cyan)'}
+ ];
+ $('#eff').innerHTML=T.map(x=>`<div class="eff-t ${x.g}"><small>${x.l}</small><div class="v num">${x.v}${x.u&&x.v!=='—'?`<span>${x.u}</span>`:''}</div><div class="bar" style="--bc:${x.bc}"><i style="width:${Math.min(100,(x.f||0)*100)}%"></i><span class="tick" style="inset-inline-start:${x.t*100}%"></span></div><div class="cap">${x.tl}</div></div>`).join('');
+}
+function renderForecast(){
+ const P=hourProfile();
+ if(!P.rows.length){$('#fc-chart').innerHTML='<div class="empty-chart">يظهر هذا التحليل بعد تجميع أيام من الطلبات (يبدأ من الغد).</div>';$('#fc-verdict').innerHTML='';return}
+ const peak=Math.max(...P.rows.map(r=>r[1]));
+ $('#fc-chart').innerHTML=barChart({labels:P.rows.map(r=>hourLbl(r[0])),series:[{values:P.rows.map(r=>r[1]),name:'متوسط الطلبات',cls:v=>v===peak?'b-crit':v>CFG.hourCap?'b-warn':'b-main'}],ref:CFG.hourCap,refLbl:`طاقة مندوب واحد ≈ ${CFG.hourCap}/ساعة`,W:1100,H:250,showVals:true});
+ const over=P.rows.filter(r=>r[1]>CFG.hourCap),pk=P.rows.find(r=>r[1]===peak);
+ $('#fc-verdict').innerHTML=`<div><small>ساعة الذروة</small><b>${hourLbl(pk[0])} · ${pk[1]} طلب بالمتوسط</b></div><div><small>ساعات تتجاوز طاقة المندوب</small><b class="num">${over.length?over.map(r=>hourLbl(r[0])).join('، '):'لا يوجد'}</b></div><div><small>أيام محسوبة</small><b class="num">${P.days} ${P.days>=3&&P.days<=10?'أيام':'يوم'}</b></div>`;
+}
+function storeStats(i){const L=orders.filter(o=>o.store===i),d=L.filter(o=>o.stage==='delivered');return{n:L.length,done:d.length,canc:L.filter(o=>o.stage==='cancelled').length,wait:d.length?Math.round(mean(d.map(o=>o.waitMin))):null,del:d.length?Math.round(mean(d.map(o=>o.total))):null,list:L}}
+function renderStores(){
+ const R=SL.map(s=>({s,...storeStats(s.i)})).sort((a,b)=>b.n-a.n||a.s.i-b.s.i);const mx=R[0]?.n||1;
+ $('#st-body').innerHTML=R.map((r,k)=>`<tr><td><span class="rank${k===0&&r.n?' r1':''}">${k+1}</span><button type="button" class="lnk" data-store="${r.s.i}">${esc(r.s.name)}</button> <span class="muted" style="font-size:12.5px">${esc(r.s.type)}</span>${k===0&&r.n?'<span class="badge-top">الأكثر طلبًا</span>':''}${r.s.lat==null?' <span class="late-tag" style="color:var(--warn)">بلا موقع</span>':''}</td><td><b class="num">${r.n}</b><span class="mini-bar"><i style="width:${r.n/mx*100}%"></i></span></td><td class="num">${r.done}</td><td class="num" style="${r.canc?'color:var(--crit);font-weight:700':''}">${r.canc}</td><td class="num">${r.wait!=null?mins(r.wait):'<span class="muted">—</span>'}</td><td class="num">${r.del!=null?mins(r.del):'<span class="muted">—</span>'}</td></tr>`).join('');
+}
+const DAYS=['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+function anaData(){
+ if(S.period==='today'){
+  const {hrs}=todaySlots(orders,o=>o.created);const m0=orders.length?new Date(Math.min(...orders.map(o=>o.created))):new Date();m0.setMinutes(0,0,0);
+  const sl=hrs.map((_,i)=>m0.getTime()+i*3600000);const by=i=>orders.filter(o=>o.created>=sl[i]&&o.created<sl[i]+3600000);
+  const del=orders.filter(o=>o.stage==='delivered');
+  return {x:hrs.map(hourLbl),every:hrs.length>10?2:1,hourLabels:hrs.map(hourLbl),hourVals:sl.map((_,i)=>by(i).length),hourTitle:'عدد الطلبات حسب الساعة',
+   comp:sl.map((_,i)=>by(i).filter(o=>o.stage==='delivered').length),canc:sl.map((_,i)=>by(i).filter(o=>o.stage==='cancelled').length),
+   time:sl.map((_,i)=>{const d=by(i).filter(o=>o.stage==='delivered');return d.length?mean(d.map(o=>o.total)):null}),
+   dist:sl.map((_,i)=>{const d=by(i).filter(o=>o.dist!=null);return d.length?mean(d.map(o=>o.dist)):null}),
+   stores:SL.map(s=>[s,orders.filter(o=>o.store===s.i).length]),
+   sum:{n:orders.length,c:del.length,x:orders.filter(o=>o.stage==='cancelled').length,t:mean(del.map(o=>o.total)),d:mean(orders.map(o=>o.dist))}};
+ }
+ const nd=S.period==='week'?7:30,m=midnight();const days=[...Array(nd)].map((_,i)=>m-(nd-1-i)*864e5);
+ const inDay=t=>ALL.filter(o=>o.created>=t&&o.created<t+864e5);const P=ALL.filter(o=>o.created>=days[0]);
+ const x=days.map(t=>{const d=new Date(t);return S.period==='week'?DAYS[d.getDay()]:`${d.getDate()}/${d.getMonth()+1}`});
+ const hc={};P.forEach(o=>{const h=new Date(o.created).getHours();hc[h]=(hc[h]||0)+1});const hk=Object.keys(hc).map(Number).sort((a,b)=>a-b);const hrs=hk.length?[...Array(hk.at(-1)-hk[0]+1)].map((_,i)=>hk[0]+i):[];
+ const del=P.filter(o=>o.stage==='delivered');
+ return {x,every:S.period==='week'?1:5,hourLabels:hrs.map(hourLbl),hourVals:hrs.map(h=>+((hc[h]||0)/nd).toFixed(1)),hourTitle:'متوسط الطلبات اليومي حسب الساعة',
+  comp:days.map(t=>inDay(t).filter(o=>o.stage==='delivered').length),canc:days.map(t=>inDay(t).filter(o=>o.stage==='cancelled').length),
+  time:days.map(t=>{const d=inDay(t).filter(o=>o.stage==='delivered');return d.length?mean(d.map(o=>o.total)):null}),
+  dist:days.map(t=>{const d=inDay(t).filter(o=>o.dist!=null);return d.length?mean(d.map(o=>o.dist)):null}),
+  stores:SL.map(s=>[s,P.filter(o=>o.store===s.i).length]),
+  sum:{n:P.length,c:del.length,x:P.filter(o=>o.stage==='cancelled').length,t:mean(del.map(o=>o.total)),d:mean(P.map(o=>o.dist))}};
+}
+function renderAna(){
+ const a=anaData();const st=a.stores.sort((p,q)=>q[1]-p[1]);const mx=st[0]?.[1]||1;
+ const pLbl={today:'اليوم',week:'آخر 7 أيام',month:'آخر 30 يومًا'}[S.period];
+ $('#ana').innerHTML=`
+ <div class="panel span2"><div class="ph"><h3>${a.hourTitle}</h3><span>إجمالي ${pLbl}: <b class="num">${a.sum.n}</b></span></div>${barChart({labels:a.hourLabels,series:[{values:a.hourVals,cls:'b-main',name:'طلبات'}],W:1100,H:220,showVals:true,every:a.hourLabels.length>12?2:1})}</div>
+ <div class="panel"><div class="ph"><h3>المكتملة مقابل الملغاة</h3><span>نسبة الإلغاء <b class="num">${pct(a.sum.x/Math.max(1,a.sum.n))}</b></span></div>${barChart({labels:a.x,series:[{values:a.comp,cls:'b-ok',name:'مكتملة'},{values:a.canc,cls:'b-crit',name:'ملغاة'}],H:190,every:a.every})}<div class="legend-i"><span><i style="background:var(--ok)"></i>مكتملة ${a.sum.c}</span><span><i style="background:var(--crit)"></i>ملغاة ${a.sum.x}</span></div></div>
+ <div class="panel"><div class="ph"><h3>متوسط زمن التوصيل</h3><span>المتوسط <b class="num">${a.sum.t?a.sum.t.toFixed(0):'—'}</b> دقيقة</span></div>${lineChart({labels:a.x,values:a.time,unit:' د',every:a.every,ref:CFG.expected,refLbl:`المستهدف ${CFG.expected} د`})}</div>
+ <div class="panel"><div class="ph"><h3>أكثر المحلات طلبًا</h3><span>${pLbl}</span></div><div class="hbars">${st.map(([s,n],k)=>`<div class="hb${k===0&&n?' top':''}"><button type="button" class="nm" data-store="${s.i}">${esc(s.name)}</button><div class="tr"><i style="width:${n/mx*100}%"></i></div><span class="c">${n}</span></div>`).join('')}</div></div>
+ <div class="panel"><div class="ph"><h3>متوسط المسافة لكل طلب</h3><span>المتوسط <b class="num">${a.sum.d?a.sum.d.toFixed(1):'—'}</b> كم</span></div>${lineChart({labels:a.x,values:a.dist,unit:' كم',dec:1,every:a.every})}</div>`;
+}
+
+/* =====================================================================
+   STORE VIEW
+   ===================================================================== */
+const etaMin=k=>Math.max(1,Math.round(k/25*60));
+const queuePos=o=>waitingSorted().indexOf(o)+1;
+function renderStoreView(){
+ const s=SM[S.storeId];if(!s)return;
+ $('#s-banner').innerHTML=s.lat==null?`<div class="banner"><div><b>حدّد موقع محلك على الخريطة</b><p>ليظهر للمندوب ويُحسب زمن الوصول والمسافة.</p></div><div class="row2"><button type="button" class="btn pri" id="s-gpsloc">${ico('pin')}استخدم موقعي الحالي</button><button type="button" class="btn" id="s-maploc">حدد على الخريطة</button></div></div>`:'';
+ const L=orders.filter(o=>o.store===s.i);const act=L.filter(isActive),del=L.filter(o=>o.stage==='delivered');
+ const K=[['طلبات اليوم',L.length,'','box','var(--navy-2)'],['النشطة الآن',act.length,'','flow','var(--accent)'],['تم التسليم',del.length,'','check','var(--ok)'],['متوسط التوصيل',del.length?Math.round(mean(del.map(o=>o.total))):'—',del.length?'دقيقة':'','clock','var(--violet)']];
+ $('#s-kpis').innerHTML=K.map(([l,v,u,i,c])=>`<div class="kpi static" style="--kc:${c}"><div class="kpi-top"><span class="kpi-l">${l}</span><span class="kpi-ic">${ico(i)}</span></div><div class="kpi-v num">${v}${u?`<small>${u}</small>`:''}</div></div>`).join('');
+ const j=job(),ph=phase();let st,sub;
+ if(j&&j.store===s.i){const rem=driverRem();st=ph==='to_store'?'المندوب متجه إليك':ph==='at_store'?'المندوب في المحل الآن':'المندوب استلم طلبك';sub=ph==='to_store'?`الطلب #${j.id}${rem!=null?` · يصل خلال ${mins(etaMin(rem))} تقريبًا (${rem.toFixed(1)} كم)`:''}`:`الطلب #${j.id} · ${PHASE_TXT[ph]}`}
+ else{const mineW=act.filter(o=>o.stage==='waiting');st=j?'المندوب مشغول بطلب آخر':'المندوب متاح';sub=mineW.length?`ترتيب أول طلب لك في الطابور: ${queuePos(mineW[0])}`:j?`يُنهي طلبًا لمحل آخر حاليًا`:'أرسل طلبًا وسيصله فورًا'}
+ $('#s-drv').innerHTML=`<div class="drv-status"><div class="drv-av">01</div><div><b>${st}</b><p>${sub}</p></div></div><div class="dr-actions" style="margin-top:12px"><button type="button" class="btn" data-driver="1">${ico('pin')}عرض موقعه</button></div>`;
+ const tab=S.sTab||'active';let rows=tab==='active'?act:tab==='done'?L.filter(o=>!isActive(o)):L;
+ rows=rows.slice().sort((a,b)=>(PRI[disp(a)]-PRI[disp(b)])||(b.created-a.created));
+ $('#s-n').textContent=rows.length;
+ $('#s-list').innerHTML=rows.length?rows.map(o=>{const d=disp(o);const extra=o.stage==='waiting'?`ترتيبه في الطابور: ${queuePos(o)}`:o.stage==='new'?(o.readyDue?`يجهز ${fmtT(o.readyDue)}`:'قيد التجهيز'):o.stage==='delivered'?`سُلّم خلال ${mins(o.total)}`:o.stage==='cancelled'?esc(o.reason||''):'مع المندوب';
+  return `<div class="so"><div class="so-m"><div class="t"><span class="oid">#${o.id}</span><b>${esc(o.name)}</b><span class="pill s-${d}" style="cursor:default">${ST[d]}</span></div><small><span class="mono">${fmtT(o.created)}</span> · ${fk(o.dist)} · ${extra}</small></div>
+  <div class="so-a">${o.stage==='new'?`<button type="button" class="btn-sm ok" data-ready="${o.id}">الطلب جاهز</button>`:''}${['new','waiting'].includes(o.stage)?`<button type="button" class="btn-sm danger" data-cancel="${o.id}">إلغاء</button>`:''}<button type="button" class="btn-sm" data-view="${o.id}">التفاصيل</button></div></div>`}).join(''):`<div class="empty">${tab==='active'?'لا توجد طلبات نشطة. أرسل طلب مندوب من النموذج.':'لا توجد طلبات.'}</div>`;
+}
+function parseLoc(t){t=(t||'').trim();if(!t)return null;
+ const pats=[/@(-?\d+\.\d+),\s*(-?\d+\.\d+)/,/[?&](?:q|query|ll|destination)=(-?\d+\.\d+)(?:,|%2C)\s*(-?\d+\.\d+)/i,/^(-?\d+\.\d+)\s*[, ]\s*(-?\d+\.\d+)$/,/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/];
+ for(const p of pats){const m=t.match(p);if(m){const lat=+m[1],lng=+m[2];if(Math.abs(lat)<=90&&Math.abs(lng)<=180)return{lat,lng}}}return 'bad'}
+function updateLocState(){const el=$('#s-locstate');if(!el)return;const s=SM[S.storeId];
+ if(S.pick){const d=s?roadKm(s.lat,s.lng,S.pick.lat,S.pick.lng):null;el.className='loc-state ok';el.innerHTML=`${ico('ok',2.6).replace('<svg','<svg width="15" height="15"')} تم تحديد الموقع${d!=null?` · نحو ${d.toFixed(1)} كم`:''} <button type="button" class="btn-sm" id="s-clearloc">مسح</button>`}
+ else{el.className='loc-state';el.textContent='لم يُحدَّد الموقع بعد (اختياري)'}}
+async function saveStoreLoc(lat,lng,storeId){
+ const {error}=await sb.rpc('set_store_location',{p_lat:lat,p_lng:lng,p_store:storeId??null});
+ if(error)return toast(error.message);const s=SM[storeId??S.storeId];if(s){s.lat=lat;s.lng=lng}toast('تم حفظ موقع المحل');S.fitted=false;fitMap(true);renderAll();
+}
+
+/* =====================================================================
+   DRIVER VIEW
+   ===================================================================== */
+function renderDriverView(){
+ const j=job(),ph=phase();const stepIdx=!j?-1:ph==='to_store'?1:ph==='at_store'?2:3;
+ const steps=['قبول الطلب','الوصول للمحل','استلام الطلب','التسليم'];
+ const g=$('#d-gps');g.className='gps '+(S.gps==='ok'?'ok':S.gps==='off'?'':'bad');g.textContent=S.gps==='ok'?'الموقع مباشر':S.gps==='denied'?'الموقع غير مفعّل':S.gps==='unsupported'?'الجهاز لا يدعم الموقع':'جارٍ تحديد الموقع…';
+ $('#d-job-id').textContent=j?`#${j.id}`:'';
+ if(!j)$('#d-job').innerHTML=`<div class="drv-status"><div class="drv-av">01</div><div><b>أنت متاح</b><p>${S.gps==='denied'?'فعّل خدمة الموقع للمتصفح ليظهر موقعك للإدارة والمحلات.':'اقبل طلبًا من قائمة الانتظار لبدء التوصيل.'}</p></div></div>`;
+ else{const s=SM[j.store]||{};const rem=driverRem();
+  const navTo=ph==='to_customer'?(j.lat!=null?[j.lat,j.lng]:null):(s.lat!=null?[s.lat,s.lng]:null);
+  const act=ph==='to_store'?`<button type="button" class="btn pri huge" data-act="arrive">${ico('pin')}وصلت إلى المحل</button>`:ph==='at_store'?`<button type="button" class="btn pri huge" data-act="pick">${ico('box')}استلمت الطلب وبدأت التوصيل</button>`:`<button type="button" class="btn huge ok" data-act="deliver">${ico('check')}تم التسليم للعميل</button>`;
+  $('#d-job').innerHTML=`<div class="job-steps">${steps.map((t,i)=>`<div class="${i<stepIdx?'done':i===stepIdx?'cur':''}"><i></i>${t}</div>`).join('')}</div>
+  <div><small class="muted">${PHASE_TXT[ph]}</small><p class="job-big">${ph==='to_customer'?'العميل '+esc(j.name):esc(s.name||'')}</p>${rem!=null?`<small class="muted">المسافة المتبقية <b class="num" id="d-rem">${rem.toFixed(1)}</b> كم</small>`:''}</div>
+  <div class="facts"><div><small>المحل</small><b>${esc(s.name||'')}</b></div><div><small>العميل</small><b>${esc(j.name)}</b></div><div><small>الدفع</small><b>${esc(j.pay||'—')}${j.value?` · ${j.value} ر.س`:''}</b></div><div><small>مسافة التوصيل</small><b class="num">${fk(j.dist)}</b></div>${j.loc?`<div style="grid-column:1/-1"><small>موقع العميل</small><b style="white-space:normal">${esc(j.loc)}</b></div>`:''}${j.note?`<div style="grid-column:1/-1"><small>ملاحظات المحل</small><b style="white-space:normal">${esc(j.note)}</b></div>`:''}</div>
+  ${act}<div class="row2">${navTo?`<a class="btn" style="flex:1;justify-content:center;text-decoration:none;color:inherit" href="https://www.google.com/maps/dir/?api=1&destination=${navTo[0]},${navTo[1]}" target="_blank" rel="noopener">${ico('nav')}الملاحة في خرائط Google</a>`:''}<button type="button" class="btn" data-view="${j.id}" style="flex:1;justify-content:center">تفاصيل الطلب</button></div>`}
+ const w=waitingSorted();$('#d-qn').textContent=w.length;
+ $('#d-queue').innerHTML=w.length?w.map(o=>`<div class="q-row"><div><b>${esc(storeName(o.store))}</b> <span class="oid muted">#${o.id}</span>${lateBy(o)>0?' <span class="late-tag">متأخر</span>':''}<small>${fk(o.dist)} للعميل · جاهز منذ ${mins(Math.max(0,sinceReady(o)))}</small></div><button type="button" class="btn-sm${j?'':' ok'}" data-accept="${o.id}" ${j?'disabled title="أكمل الطلب الحالي أولًا"':''}>قبول</button></div>`).join(''):'<div class="empty">لا توجد طلبات بانتظار مندوب.</div>';
+ const del=orders.filter(o=>o.stage==='delivered'&&o.driver===DRV.id);
+ $('#d-sum').innerHTML=`<div class="kv" style="grid-template-columns:repeat(3,minmax(0,1fr))"><div><small>طلبات مسلّمة</small><b class="num">${del.length}</b></div><div><small>مسافة التوصيل</small><b class="num">${del.reduce((a,o)=>a+(o.dist||0),0).toFixed(1)} كم</b></div><div><small>متوسط التوصيل</small><b class="num">${del.length?Math.round(mean(del.map(o=>o.total))):'—'} د</b></div></div>`;
+}
+let gpsWatch=null,lastPing=0,lastPingPos=null,wakeLock=null;
+function startGPS(){
+ if(!('geolocation' in navigator)){S.gps='unsupported';return}
+ S.gps='wait';
+ gpsWatch=navigator.geolocation.watchPosition(p=>{
+  const {latitude:lat,longitude:lng,accuracy}=p.coords;S.gps='ok';DRV.lat=lat;DRV.lng=lng;DRV.updated=Date.now();drawDriver();
+  const moved=lastPingPos?hav(lastPingPos[0],lastPingPos[1],lat,lng)*1000:1e9;
+  if(Date.now()-lastPing>10000||moved>30){lastPing=Date.now();lastPingPos=[lat,lng];sb.rpc('driver_ping',{p_lat:lat,p_lng:lng,p_acc:accuracy})}
+  if(S.fitted===false)fitMap(true);
+ },e=>{S.gps=e.code===1?'denied':'wait';scheduleRender()},{enableHighAccuracy:true,maximumAge:5000,timeout:20000});
+ requestWake();
+}
+async function requestWake(){try{if('wakeLock' in navigator)wakeLock=await navigator.wakeLock.request('screen')}catch(_){}}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&S.role==='driver')requestWake()});
+function stopGPS(){if(gpsWatch!=null)navigator.geolocation.clearWatch(gpsWatch);gpsWatch=null;S.gps='off';try{wakeLock?.release()}catch(_){}}
+
+/* =====================================================================
+   DRAWERS
+   ===================================================================== */
+let lastFocus=null;
+function openDrawer(html){lastFocus=document.activeElement;const d=$('#drawer');d.innerHTML=html;d.classList.add('on');$('#scrim').classList.add('on');setTimeout(()=>d.querySelector('.icon-btn')?.focus(),60)}
+function closeDrawer(){$('#drawer').classList.remove('on');if(!$('#more').classList.contains('on'))$('#scrim').classList.remove('on');S.drawer=null;lastFocus?.focus?.()}
+const drHead=(eb,t)=>`<div class="dr-h"><div><div class="eyebrow">${eb}</div><h3 id="dr-title">${t}</h3></div><button type="button" class="icon-btn" data-close aria-label="إغلاق">${ico('x')}</button></div>`;
+function timeline(o){
+ if(o.stage==='cancelled')return `<ol class="tl"><li class="done"><i class="nd"></i><time>${fmtT(o.ev.created)}</time><span>تم إنشاء الطلب</span></li><li class="cxl"><i class="nd"></i><time>${fmtT(o.ev.cancelled)}</time><span>تم إلغاء الطلب<em>${esc(o.reason||'')}</em></span></li></ol>`;
+ const steps=[['created','تم إنشاء الطلب'],['ready','الطلب جاهز في المحل'],['assigned','قبِل المندوب الطلب'],['arrived','المندوب وصل إلى المحل'],['picked','تم استلام الطلب'],['delivered','تم التسليم']];
+ let cur=false;
+ return `<ol class="tl">${steps.map(([k,l])=>{const t=o.ev[k];if(t)return `<li class="done"><i class="nd"></i><time>${fmtT(t)}</time><span>${l}</span></li>`;
+  if(!cur){cur=true;let note='';
+   if(k==='ready')note=o.readyDue?`متوقع ${fmtT(o.readyDue)}`:'بانتظار تجهيز المحل';
+   else if(k==='assigned')note=`بانتظار المندوب منذ ${mins(Math.max(0,sinceReady(o)))}`;
+   else if(k==='arrived')note='المندوب في طريقه إلى المحل';
+   else if(k==='picked')note='المندوب في المحل';
+   else if(k==='delivered')note=`المتوقع قبل ${fmtT(o.created+CFG.expected*MIN)}`;
+   return `<li class="cur"><i class="nd"></i><time>الآن</time><span>${l}<em>${note}</em></span></li>`}
+  return `<li class="pend"><i class="nd"></i><time>—</time><span>${l}</span></li>`}).join('')}</ol>`;
+}
+function openOrder(id){
+ const o=ALL.find(x=>x.id===id);if(!o)return;S.sel=id;S.drawer={t:'order',id};
+ const d=disp(o);
+ openDrawer(drHead('تفاصيل الطلب',`الطلب <span class="mono">#${o.id}</span>`)+`<div class="dr-b">
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="pill s-${d}" style="cursor:default">${ST[d]}</span>${d==='late'?`<span class="late-tag">متأخر ${mins(lateBy(o))} عن الوقت المتوقع</span>`:''}</div>
+  <div class="facts">
+   <div><small>المحل</small><b>${S.role==='admin'?`<button type="button" class="lnk" data-store="${o.store}">${esc(storeName(o.store))}</button>`:esc(storeName(o.store))}</b></div>
+   <div><small>المندوب</small><b>${o.driver!=null?esc(DRV.name):'بانتظار التعيين'}</b></div>
+   <div><small>العميل</small><b>${esc(o.name)}</b></div>
+   <div><small>المسافة</small><b class="num">${fk(o.dist)}</b></div>
+   <div><small>وقت الطلب</small><b class="mono">${fmtT(o.created)}</b></div>
+   <div><small>${o.stage==='delivered'?'مدة التوصيل':'المدة المنقضية'}</small><b class="num">${o.stage==='delivered'?mins(o.total):o.stage==='cancelled'?'—':mins(elapsed(o))}</b></div>
+   <div><small>الدفع</small><b>${esc(o.pay||'—')}${o.value?` · ${o.value} ر.س`:''}</b></div>
+   ${o.loc?`<div><small>موقع العميل</small><b style="white-space:normal">${esc(o.loc)}</b></div>`:''}
+   ${o.note?`<div style="grid-column:1/-1"><small>ملاحظات</small><b style="white-space:normal">${esc(o.note)}</b></div>`:''}
+  </div>
+  <div class="dr-actions"><button type="button" class="btn pri" data-onmap="${o.id}">${ico('pin')}عرض على الخريطة</button>${S.role==='admin'&&isActive(o)?`<button type="button" class="btn-sm danger" data-cancel="${o.id}" style="padding:8px 14px">إلغاء الطلب</button>`:''}</div>
+  <div class="dr-sec"><h4>الخط الزمني للطلب</h4>${timeline(o)}</div></div>`);
+ scheduleRender();
+}
+function openStore(i){
+ if(S.role!=='admin')return;const s=SM[i];if(!s)return;const r=storeStats(i);S.drawer={t:'store',id:i};
+ const {hrs,vals}=todaySlots(r.list,o=>o.created);
+ openDrawer(drHead(`${esc(s.type)} · حي مشرف`,esc(s.name))+`<div class="dr-b">
+  <div class="facts">
+   <div><small>طلبات اليوم</small><b class="num">${r.n}</b></div><div><small>المكتملة</small><b class="num">${r.done}</b></div>
+   <div><small>الملغاة</small><b class="num">${r.canc}</b></div><div><small>النشطة الآن</small><b class="num">${r.list.filter(isActive).length}</b></div>
+   <div><small>متوسط وقت الانتظار</small><b class="num">${r.wait!=null?mins(r.wait):'—'}</b></div><div><small>متوسط التوصيل</small><b class="num">${r.del!=null?mins(r.del):'—'}</b></div>
+  </div>
+  <div class="dr-actions"><button type="button" class="btn" id="st-setloc" data-sid="${i}">${ico('pin')}${s.lat==null?'تحديد موقع المحل':'تعديل موقع المحل'}</button></div>
+  <div class="dr-sec"><h4>الطلبات حسب الساعة</h4>${barChart({labels:hrs.map(hourLbl),series:[{values:vals,cls:'b-main',name:'طلبات'}],H:150,W:400,showVals:true,every:hrs.length>8?2:1})}</div>
+  <div class="dr-sec"><h4>طلبات اليوم</h4><div class="olist">${r.list.slice().sort((a,b)=>b.created-a.created).map(o=>`<button type="button" data-view="${o.id}"><span class="oid">#${o.id}</span><span>${esc(o.name)} · <span class="mono">${fmtT(o.created)}</span></span><span class="pill s-${disp(o)}" style="cursor:inherit">${ST[disp(o)]}</span></button>`).join('')||'<div class="empty">لا توجد طلبات اليوم.</div>'}</div></div></div>`);
+ $('#st-setloc').onclick=()=>{closeDrawer();S.pickStore=i;startPicking('store')};
+}
+function openSettings(){
+ S.drawer={t:'settings'};const admin=S.role==='admin';
+ openDrawer(drHead('الإعدادات',admin?'إعدادات التشغيل':'الحساب')+`<div class="dr-b">
+ ${admin?`<form class="form" id="set-form">
+  <label for="s-target">الطاقة اليومية المستهدفة<small>عدد الطلبات التي يغطيها مندوب واحد يوميًا</small><input id="s-target" type="number" min="5" max="200" value="${CFG.target}"></label>
+  <label for="s-exp">زمن التوصيل المتوقع (دقيقة)<small>يُعتبر الطلب متأخرًا بعد تجاوزه</small><input id="s-exp" type="number" min="10" max="120" value="${CFG.expected}"></label>
+  <label for="s-cap">طاقة المندوب بالساعة<small>تُستخدم في تحليل الذروة وقرار التوسع</small><input id="s-cap" type="number" min="1" max="10" step="0.5" value="${CFG.hourCap}"></label>
+  <div class="dr-actions"><button class="btn pri" type="submit">${ico('ok')}حفظ إعدادات التشغيل</button></div>
+ </form>`:''}
+ <form class="form" id="pw-form" style="border-top:${admin?'1px dashed var(--line);padding-top:16px':'0'}">
+  <div class="dr-sec"><h4 style="margin:0">تغيير الرقم السري لحسابك</h4></div>
+  <label for="pw1">الرقم السري الجديد<small>6 أرقام أو أكثر</small><input id="pw1" class="pass-in" type="password" inputmode="numeric" minlength="6" autocomplete="new-password" required></label>
+  <label for="pw2">تأكيد الرقم السري<input id="pw2" class="pass-in" type="password" inputmode="numeric" minlength="6" autocomplete="new-password" required></label>
+  <div class="dr-actions"><button class="btn pri" type="submit">${ico('ok')}تغيير الرقم السري</button></div>
+  ${admin?'<p class="muted" style="font-size:12.5px;margin:0">لتغيير رقم محل أو المندوب: Supabase → Authentication → Users → اختر الحساب → Reset password.</p>':''}
+ </form></div>`);
+ if(admin)$('#set-form').addEventListener('submit',async e=>{e.preventDefault();const v={daily_target:+$('#s-target').value||25,expected_min:+$('#s-exp').value||35,hour_cap:+$('#s-cap').value||3};
+  const {error}=await sb.from('settings').update(v).eq('id',1);if(error)return toast(error.message);setCfg({...v,center_lat:CFG.center[0],center_lng:CFG.center[1]});toast('تم حفظ الإعدادات');renderAll(true)});
+ $('#pw-form').addEventListener('submit',async e=>{e.preventDefault();const a=$('#pw1').value,b=$('#pw2').value;if(a.length<6)return toast('الرقم السري 6 خانات على الأقل');if(a!==b)return toast('الرقمان غير متطابقين');
+  const {error}=await sb.auth.updateUser({password:a});if(error)return toast(error.message);e.target.reset();toast('تم تغيير الرقم السري')});
+}
+
+/* =====================================================================
+   NAV
+   ===================================================================== */
+const NAV={top:['الرئيسية','dash'],orders:['الطلبات','orders'],map:['الخريطة','route'],stores:['المحلات','store'],driver:['المندوب','bike'],reports:['التقارير','chart'],settings:['الإعدادات','cog'],more:['المزيد','more']};
+const navBtn=(k,cls='')=>`<button type="button" class="nb-btn ${cls}" data-nav="${k}" aria-label="${NAV[k][0]}"><span class="ic">${ico(NAV[k][1],1.9)}</span><span>${NAV[k][0]}</span>${k==='orders'?'<i class="badge info" data-badge="orders" hidden></i>':''}${k==='top'?'<i class="badge" data-badge="alerts" hidden></i>':''}${k==='driver'?'<i class="sdot" data-badge="driver"></i>':''}</button>`;
+$('#rail').innerHTML=`<div class="rail-logo" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#5ED3E3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="18" r="2.2"/><circle cx="19" cy="6" r="2.2"/><path d="M7 18h6a3 3 0 0 0 0-6h-2a3 3 0 0 1 0-6h6"/></svg></div>`+['top','orders','map','stores','driver','reports'].map(k=>navBtn(k)).join('')+'<div class="rail-sep"></div>'+navBtn('settings');
+$('#bnav').innerHTML=['top','orders','map','driver','more'].map(k=>navBtn(k,k==='map'?'center':'')).join('');
+$('#more-tiles').innerHTML=[['stores','أداء المحلات'],['reports','تحليل الطلبات'],['settings','التشغيل والحساب']].map(([k,d])=>`<button type="button" class="tile" data-nav="${k}"><span class="ic">${ico(NAV[k][1],1.9)}</span><span>${NAV[k][0]}<small>${d}</small></span></button>`).join('');
+function openMore(){$('#more').classList.add('on');$('#scrim').classList.add('on')}
+function closeMore(){$('#more').classList.remove('on');if(!$('#drawer').classList.contains('on'))$('#scrim').classList.remove('on')}
+function navGo(k){if(k==='more')return openMore();closeMore();if(k==='settings')return openSettings();if(k==='top')return scrollTo({top:0,behavior:'smooth'});document.getElementById(k)?.scrollIntoView({behavior:'smooth',block:'start'})}
+function navSpy(){if(S.role!=='admin')return;const ids=['orders','map','stores','driver','reports'];let cur='top';const y=innerHeight*.35;ids.forEach(id=>{const r=document.getElementById(id).getBoundingClientRect();if(r.top<y&&r.bottom>y)cur=id});if(scrollY<60)cur='top';
+ document.querySelectorAll('#rail .nb-btn').forEach(b=>b.classList.toggle('on',b.dataset.nav===cur));
+ const mc=['stores','reports'].includes(cur)?'more':cur;document.querySelectorAll('#bnav .nb-btn').forEach(b=>b.classList.toggle('on',b.dataset.nav===mc))}
+addEventListener('scroll',navSpy,{passive:true});
+function renderNavBadges(c){
+ const act=orders.filter(isActive).length;document.querySelectorAll('[data-badge="orders"]').forEach(b=>{b.textContent=act;b.hidden=!act});
+ document.querySelectorAll('[data-badge="alerts"]').forEach(b=>{b.textContent=c.late;b.hidden=!c.late});
+ const ph=phase();const col=driverStale()?'var(--grey)':({idle:'var(--grey)',at_store:'var(--warn)'}[ph]||'var(--ok)');document.querySelectorAll('[data-badge="driver"]').forEach(b=>b.style.setProperty('--dc',col));
+}
+
+/* =====================================================================
+   RENDER LOOP
+   ===================================================================== */
+let rq=false;
+function scheduleRender(){if(rq)return;rq=true;requestAnimationFrame(()=>{rq=false;renderAll()})}
+function renderAll(heavy){
+ if(!S.role)return;derive();const c=counts();
+ if(S.role==='admin'){renderKPIs(c);renderMap();renderTable();renderAlerts();renderCapacity(c);renderDriverPerf(c);renderEff(c);renderStores();renderNavBadges(c);navSpy();if(heavy){renderForecast();renderAna()}}
+ else if(S.role==='store'){renderMap();renderStoreView()}
+ else if(S.role==='driver'){renderMap();renderDriverView()}
+ if(S.drawer?.t==='order'&&$('#drawer').classList.contains('on')){const o=ALL.find(x=>x.id===S.drawer.id);const tl=$('#drawer .dr-sec .tl');if(o&&tl)tl.outerHTML=timeline(o);const p=$('#drawer .dr-b .pill');if(o&&p){const d=disp(o);p.className=`pill s-${d}`;p.textContent=ST[d]}}
+}
+function renderLive(){const p=$('#live-pill');p.classList.toggle('off',!S.live);$('#live-txt').textContent=S.live?'التشغيل نشط':'جارٍ إعادة الاتصال…'}
+
+/* =====================================================================
+   DATA
+   ===================================================================== */
+async function loadAll(){
+ const since=new Date((S.role==='admin'?Date.now()-30*864e5:midnight())).toISOString();
+ const q=sb.from('orders').select('*').or(`created_at.gte."${since}",status.in.(new,waiting,to_store,picked,to_customer)`).order('created_at',{ascending:true}).limit(5000);
+ const [o,s,d,c]=await Promise.all([q,sb.from('stores').select('*').order('id'),sb.from('drivers').select('*').eq('id',DRV.id).maybeSingle(),sb.from('settings').select('*').eq('id',1).maybeSingle()]);
+ if(o.error)throw o.error;if(s.error)throw s.error;
+ ALL=o.data.map(fromRow);setStores(s.data);if(d.data&&!(S.role==='driver'&&S.gps==='ok'))setDriver(d.data);if(c.data)setCfg(c.data);
+ S.lastUp=0;derive();
+}
+let channel=null;
+function subscribe(){
+ if(channel)sb.removeChannel(channel);
+ channel=sb.channel('ops-live')
+  .on('postgres_changes',{event:'*',schema:'public',table:'orders'},p=>{
+   if(p.eventType==='DELETE'){ALL=ALL.filter(o=>o.id!==p.old.id)}
+   else{const isNew=!ALL.some(x=>x.id===p.new.id);const o=fromRow(p.new);upsert(o);
+    if(isNew&&S.role==='driver'&&o.stage==='waiting'){toast(`طلب جديد من ${storeName(o.store)}`);try{navigator.vibrate?.([200,100,200])}catch(_){}}
+    if(isNew&&S.role==='admin')toast(`طلب جديد #${o.id} من ${storeName(o.store)}`);
+    const prev=p.old&&p.old.status;if(S.role==='driver'&&o.stage==='waiting'&&prev==='new'){toast(`طلب جاهز في ${storeName(o.store)}`);try{navigator.vibrate?.(200)}catch(_){}}
+   }
+   S.lastUp=0;scheduleRender();
+  })
+  .on('postgres_changes',{event:'UPDATE',schema:'public',table:'drivers'},p=>{if(p.new.id!==DRV.id)return;if(!(S.role==='driver'&&S.gps==='ok'))setDriver(p.new);S.lastUp=0;drawDriver();if(S.role==='store')renderStoreView()})
+  .on('postgres_changes',{event:'*',schema:'public',table:'stores'},p=>{if(!p.new?.id)return;const r=p.new;SM[r.id]?Object.assign(SM[r.id],{name:r.name,type:r.type||'',lat:r.lat,lng:r.lng}):SL.push(SM[r.id]={i:r.id,name:r.name,type:r.type||'',lat:r.lat,lng:r.lng});scheduleRender()})
+  .on('postgres_changes',{event:'UPDATE',schema:'public',table:'settings'},p=>{setCfg(p.new);renderAll(true)})
+  .subscribe(st=>{S.live=st==='SUBSCRIBED';renderLive();if(st==='SUBSCRIBED')loadAll().then(()=>renderAll(true)).catch(()=>{})});
+}
+async function act(fn,args,okMsg){
+ if(S.busy)return;S.busy=true;
+ try{const {data,error}=await sb.rpc(fn,args);if(error)throw error;if(data&&data.id)upsert(fromRow(data));if(okMsg)toast(typeof okMsg==='function'?okMsg(data):okMsg);return data}
+ catch(e){toast(e.message||'تعذّر تنفيذ العملية');return null}
+ finally{S.busy=false;S.lastUp=0;renderAll()}
+}
+
+/* =====================================================================
+   AUTH
+   ===================================================================== */
+const ROLES={admin:{t:'الإدارة',d:'مراقبة العمليات',i:'chart'},store:{t:'المحل',d:'طلب مندوب ومتابعة',i:'store'},driver:{t:'المندوب',d:'استلام وتوصيل',i:'bike'}};
+let LR='admin';
+try{LR=localStorage.getItem('ops-last-role')||'admin'}catch(_){}
+function drawRoles(){$('#roles').innerHTML=Object.entries(ROLES).map(([k,r])=>`<button type="button" class="role${k===LR?' on':''}" data-role="${k}" role="radio" aria-checked="${k===LR}">${ico(r.i,1.9)}<b>${r.t}</b><small>${r.d}</small></button>`).join('');$('#store-pick').hidden=LR!=='store'}
+const pad2=n=>String(n).padStart(2,'0');
+const emailFor=(role,store)=>role==='admin'?`admin@${AUTH_DOMAIN}`:role==='driver'?`driver${pad2(DRV.id)}@${AUTH_DOMAIN}`:`store${pad2(store)}@${AUTH_DOMAIN}`;
+function showLogin(){['admin','store','driver'].forEach(v=>$('#v-'+v).hidden=true);$('#v-login').hidden=false;$('.hdr').hidden=true;$('.app').classList.remove('nav-on');$('#loading').hidden=true;drawRoles()}
+async function fillStoreSelect(){const {data}=await sb.from('stores').select('id,name,type').eq('active',true).order('id');if(data){$('#l-store').innerHTML=data.map(s=>`<option value="${s.id}">${esc(s.name)} · ${esc(s.type||'')}</option>`).join('');try{const ls=localStorage.getItem('ops-last-store');if(ls)$('#l-store').value=ls}catch(_){}}}
+async function enter(profile){
+ S.role=profile.role;S.storeId=profile.store_id;if(profile.driver_id)DRV.id=profile.driver_id;
+ S.filter={type:'group',key:'all'};S.sortAvg=false;S.sTab='active';S.fitted=false;
+ $('#loading').hidden=false;
+ try{await loadAll()}catch(e){toast('تعذّر تحميل البيانات: '+(e.message||''));}
+ ['admin','store','driver','login'].forEach(v=>$('#v-'+v).hidden=v!==S.role);
+ $('.hdr').hidden=false;$('.app').classList.toggle('nav-on',S.role==='admin');$('#loading').hidden=true;
+ const st=SM[S.storeId];
+ const H={admin:['مركز عمليات التوصيل','حي مشرف – الخرج','مدير العمليات','الإدارة','إد'],store:[st?.name||'المحل',`واجهة المحل · ${st?.type||''} · حي مشرف`,'حساب المحل',st?.name||'','مح'],driver:['واجهة المندوب',`${DRV.name} · حي مشرف`,'المندوب',DRV.name,'01']}[S.role];
+ $('#hdr-title').textContent=H[0];$('#hdr-sub').textContent=H[1];$('#who-role').textContent=H[2];$('#who-name').textContent=H[3];$('#who-av').textContent=H[4];
+ document.title=S.role==='store'?`${H[0]} · طلبات التوصيل`:H[0];
+ if(!LM)initMap();moveMap({admin:'#map',store:'#s-map',driver:'#d-map'}[S.role]);
+ if(S.role==='driver')startGPS();
+ renderAll(true);setTimeout(()=>{LM.invalidateSize();fitMap(true)},120);
+ subscribe();scrollTo(0,0);
+}
+async function boot(){
+ if(!SUPABASE_URL||!SUPABASE_ANON_KEY||!window.supabase){$('#loading').hidden=true;$('#v-setup').hidden=false;return}
+ sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY,{auth:{persistSession:true,autoRefreshToken:true}});
+ fillStoreSelect();
+ const {data:{session}}=await sb.auth.getSession();
+ if(session){const p=await getProfile(session.user.id);if(p)return enter(p);await sb.auth.signOut()}
+ showLogin();
+}
+async function getProfile(uid){const {data}=await sb.from('profiles').select('*').eq('user_id',uid).maybeSingle();return data}
+$('#roles').addEventListener('click',e=>{const b=e.target.closest('[data-role]');if(!b)return;LR=b.dataset.role;drawRoles();$('#l-err').hidden=true;$('#l-pass').value='';$('#l-pass').focus()});
+$('#login-form').addEventListener('submit',async e=>{e.preventDefault();
+ const err=$('#l-err'),btn=$('#l-btn');err.hidden=true;btn.disabled=true;btn.textContent='جارٍ التحقق…';
+ try{
+  const store=+$('#l-store').value;const {data,error}=await sb.auth.signInWithPassword({email:emailFor(LR,store),password:$('#l-pass').value});
+  if(error)throw new Error('الرقم السري غير صحيح لهذه الواجهة.');
+  const p=await getProfile(data.user.id);
+  if(!p||p.role!==LR){await sb.auth.signOut();throw new Error('هذا الحساب غير مربوط بالواجهة المختارة. راجع إعداد الحسابات.')}
+  try{localStorage.setItem('ops-last-role',LR);localStorage.setItem('ops-last-store',String(store))}catch(_){}
+  $('#l-pass').value='';await enter(p);
+ }catch(x){err.textContent=x.message;err.hidden=false}
+ finally{btn.disabled=false;btn.textContent='دخول'}
+});
+async function logout(){closeDrawer();closeMore();stopGPS();if(channel){sb.removeChannel(channel);channel=null}await sb.auth.signOut();S.role=null;ALL=[];orders=[];showLogin();scrollTo(0,0)}
+$('#logout').addEventListener('click',logout);$('#more-out').addEventListener('click',logout);
+$('#acct').addEventListener('click',openSettings);
+
+/* =====================================================================
+   EVENTS
+   ===================================================================== */
+function focusDriver(){closeDrawer();const j=job();if(j)S.sel=j.id;renderAll();if(DRV.lat!=null)LM.setView([DRV.lat,DRV.lng],16);else toast('لم يصل موقع المندوب بعد');$('#map-stage').scrollIntoView({behavior:'smooth',block:'center'})}
+function setFilter(f){const same=S.filter.type===f.type&&S.filter.key===f.key;S.filter=same?{type:'group',key:'all'}:f;S.sortAvg=false;renderAll()}
+let armT;
+document.addEventListener('click',async e=>{
+ const r=e.target.closest('[data-accept],[data-act],[data-ready],[data-cancel]');
+ if(r){e.stopPropagation();
+  if(r.dataset.accept){if(job())return toast('أكمل الطلب الحالي أولًا');return act('driver_accept',{p_id:+r.dataset.accept},d=>`تم قبول الطلب #${d.id}`)}
+  if(r.dataset.act){const j=job();if(!j)return;const msg={arrive:'تم تسجيل وصولك للمحل',pick:'بدأ التوصيل للعميل',deliver:`تم تسليم الطلب #${j.id}`}[r.dataset.act];return act('driver_step',{p_id:j.id,p_step:r.dataset.act},msg)}
+  if(r.dataset.ready)return act('mark_ready',{p_id:+r.dataset.ready},d=>`الطلب #${d.id} جاهز للاستلام`);
+  if(r.dataset.cancel){if(!r.classList.contains('armed')){document.querySelectorAll('.armed').forEach(x=>{x.classList.remove('armed');x.textContent=x.dataset.label||'إلغاء'});r.dataset.label=r.textContent;r.classList.add('armed');r.textContent='تأكيد الإلغاء';clearTimeout(armT);armT=setTimeout(()=>{r.classList.remove('armed');r.textContent=r.dataset.label},4000);return}
+   const d=await act('cancel_order',{p_id:+r.dataset.cancel,p_reason:null},x=>`تم إلغاء الطلب #${x.id}`);if(d&&S.drawer?.t==='order')closeDrawer();return}
+ }
+ const t=e.target.closest('[data-close],[data-kpi],[data-f],[data-status],[data-store],[data-driver],[data-view],[data-onmap],[data-order],[data-nav],[data-stab],#clr,#drv-locate,#period button,#s-gpsloc,#s-maploc,#s-pickbtn,#s-clearloc');
+ if(!t)return;
+ if(t.matches('[data-close]'))return closeDrawer();
+ if(t.id==='clr'){S.filter={type:'group',key:'all'};S.sortAvg=false;return renderAll()}
+ if(t.matches('[data-kpi]')){const k=t.dataset.kpi;if(k==='avg'){const was=S.sortAvg;S.filter={type:'group',key:was?'all':'done'};S.sortAvg=!was;renderAll();if(!was)$('#orders').scrollIntoView({behavior:'smooth',block:'start'});return}return setFilter({type:'group',key:k})}
+ if(t.matches('[data-f]'))return setFilter({type:'group',key:t.dataset.f});
+ if(t.matches('[data-status]')){e.stopPropagation();return setFilter({type:'status',key:t.dataset.status})}
+ if(t.matches('[data-stab]')){S.sTab=t.dataset.stab;document.querySelectorAll('#s-tabs .chip').forEach(c=>c.classList.toggle('on',c===t));return renderStoreView()}
+ if(t.matches('[data-store]')){e.stopPropagation();return openStore(+t.dataset.store)}
+ if(t.matches('[data-driver]')||t.id==='drv-locate'){e.stopPropagation();return focusDriver()}
+ if(t.matches('[data-view]')){e.stopPropagation();return openOrder(+t.dataset.view)}
+ if(t.matches('[data-onmap]')){const o=ALL.find(x=>x.id===+t.dataset.onmap);S.sel=o?.id;closeDrawer();renderAll();if(o?.lat!=null)LM.setView([o.lat,o.lng],16);else toast('لم يُحدَّد موقع العميل لهذا الطلب');return $('#map-stage').scrollIntoView({behavior:'smooth',block:'center'})}
+ if(t.matches('[data-order]'))return openOrder(+t.dataset.order);
+ if(t.matches('[data-nav]'))return navGo(t.dataset.nav);
+ if(t.matches('#period button')){S.period=t.dataset.p;document.querySelectorAll('#period button').forEach(x=>x.classList.toggle('on',x===t));return renderAna()}
+ if(t.id==='s-maploc'){S.pickStore=null;return startPicking('store')}
+ if(t.id==='s-pickbtn')return startPicking('cust');
+ if(t.id==='s-clearloc'){S.pick=null;setPickMarker(null);$('#s-link').value='';return updateLocState()}
+ if(t.id==='s-gpsloc'){if(!navigator.geolocation)return toast('الجهاز لا يدعم تحديد الموقع');t.disabled=true;navigator.geolocation.getCurrentPosition(p=>saveStoreLoc(p.coords.latitude,p.coords.longitude),()=>{t.disabled=false;toast('تعذّر تحديد الموقع، حدده على الخريطة')},{enableHighAccuracy:true,timeout:15000})}
+});
+// store-location picking from admin drawer uses S.pickStore
+const _saveStoreLoc=saveStoreLoc;saveStoreLoc=(lat,lng)=>_saveStoreLoc(lat,lng,S.role==='admin'?S.pickStore:null);
+$('#scrim').addEventListener('click',()=>{closeMore();closeDrawer()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeMore();closeDrawer();stopPicking()}});
+$('#refresh').addEventListener('click',async()=>{const b=$('#refresh');b.classList.add('spin');b.disabled=true;try{await loadAll();renderAll(true);toast('تم تحديث البيانات')}catch(e){toast('تعذّر التحديث: '+(e.message||''))}finally{b.classList.remove('spin');b.disabled=false}});
+$('#s-link').addEventListener('change',e=>{const r=parseLoc(e.target.value);if(r==='bad'){toast('لم أتعرف على الموقع في الرابط. الروابط المختصرة لا تحتوي إحداثيات، حدده على الخريطة');return}S.pick=r;if(r){setPickMarker(r.lat,r.lng);LM.setView([r.lat,r.lng],16)}else setPickMarker(null);updateLocState()});
+$('#s-form').addEventListener('submit',async e=>{e.preventDefault();
+ const btn=$('#s-submit');btn.disabled=true;
+ const d=await act('create_order',{p_customer_name:$('#s-cname').value,p_customer_loc:$('#s-loc').value,p_cust_lat:S.pick?.lat??null,p_cust_lng:S.pick?.lng??null,p_pay:$('#s-pay').value,p_value:+$('#s-val').value||null,p_note:$('#s-note').value,p_ready_in:+$('#s-ready').value,p_store:null},x=>`تم إرسال طلب المندوب #${x.id}`);
+ btn.disabled=false;
+ if(d){e.target.reset();S.pick=null;setPickMarker(null);updateLocState();S.sel=d.id;S.sTab='active';document.querySelectorAll('#s-tabs .chip').forEach(x=>x.classList.toggle('on',x.dataset.stab==='active'));renderAll()}
+});
+
+/* clock, last-update, periodic jobs */
+function clock(){const d=new Date();$('#clk').textContent=d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+ const g=d.toLocaleDateString('ar-SA-u-ca-gregory-nu-latn',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+ let h='';try{h=d.toLocaleDateString('ar-SA-u-ca-islamic-umalqura-nu-latn',{day:'numeric',month:'long',year:'numeric'})}catch(_){}
+ $('#dt').textContent=g+(h?` · ${h}`:'');
+ S.lastUp++;$('#upd').textContent=`آخر تحديث: ${S.lastUp<5?'الآن':'منذ '+(S.lastUp<60?S.lastUp+' ثانية':mins(S.lastUp/60))}`;
+}
+setInterval(clock,1000);clock();
+setInterval(()=>{if(S.role&&!document.hidden)renderAll()},15000);
+setInterval(()=>{if(sb&&S.role&&S.role!=='driver'&&orders.some(o=>o.stage==='new'&&o.readyDue&&o.readyDue<=Date.now()))sb.rpc('promote_due')},20000);
+setInterval(()=>{if(sb&&S.role&&!document.hidden&&!S.live)loadAll().then(()=>renderAll()).catch(()=>{})},60000);
+
+boot();
+
+</script>
+</body>
+</html>
